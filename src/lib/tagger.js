@@ -264,11 +264,49 @@ function cleanOcr(v) {
   return s
 }
 
+const FIELD_KEYS = /^(tags?|description|ocr_text|ocr|caption|keywords|labels|subjects|objects)$/i
+
+/** Pull a string field value out of raw (possibly truncated) JSON text. */
+function extractStringField(raw, field) {
+  const m = raw.match(new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i'))
+  return m ? m[1] : ''
+}
+
+/**
+ * Recover tags from JSON that failed to parse (e.g. truncated output with
+ * no closing brace). Targets the "tags": [ ... ] region when present and
+ * collects the quoted string values; otherwise scans all quoted strings.
+ * Filters to reasonable values (2-50 chars) and drops JSON field names.
+ */
+function recoverTruncatedTags(raw) {
+  let region
+  const m = raw.match(/"tags"\s*:\s*\[/i)
+  if (m) {
+    region = raw.slice(m.index + m[0].length)
+    const close = region.indexOf(']')
+    if (close !== -1) region = region.slice(0, close)
+    // If the array never closed, stop before the next field begins.
+    const stop = region.search(/"(description|ocr_text|ocr|caption|keywords|labels|subjects)"\s*:/i)
+    if (stop !== -1) region = region.slice(0, stop)
+  } else {
+    region = raw
+  }
+  const out = []
+  const re = /"([^"]{2,50})"/g
+  let mm
+  while ((mm = re.exec(region))) {
+    const v = mm[1].trim()
+    if (!v || FIELD_KEYS.test(v)) continue
+    out.push(v)
+  }
+  return out
+}
+
 /**
  * Best-effort parse of a model response into { tags, description, ocr_text }.
- * Strips fences, isolates the {...} block, recovers tags from alternate
- * fields, and finally falls back to keyword extraction from plain text.
- * Always logs the resulting tag count. Returns null when nothing usable.
+ * Preserves multi-word tags exactly as returned. Only resorts to plain-text
+ * keyword extraction when the JSON cannot be parsed AND truncation recovery
+ * finds nothing. Always logs the resulting tag count.
  */
 function parseModelJson(text, modelName = 'model') {
   const logCount = (n, note = '') =>
@@ -303,10 +341,11 @@ function parseModelJson(text, modelName = 'model') {
     }
   }
 
+  // ---- JSON parsed cleanly: preserve array tags exactly (no tokenizing) ----
   if (obj && typeof obj === 'object') {
     let tags = obj.tags
 
-    // tags present but not an array → coerce.
+    // tags present but not an array → coerce (only this non-array case splits).
     if (tags && !Array.isArray(tags)) {
       tags = typeof tags === 'string' ? tags.split(/[,\n]/) : [tags]
     }
@@ -318,6 +357,7 @@ function parseModelJson(text, modelName = 'model') {
       else if (typeof alt === 'string') tags = alt.split(/[,\n]/)
     }
 
+    // Multi-word tags like "asrock b450 pro4" are kept whole here.
     const norm = normalizeTags(tags || [])
     if (norm.length) {
       logCount(norm.length)
@@ -332,10 +372,22 @@ function parseModelJson(text, modelName = 'model') {
         ocr_text: cleanOcr(obj.ocr_text ?? obj.ocr ?? obj.text),
       }
     }
-    // JSON parsed but tags empty → fall through to text extraction.
+    // Parsed object had no usable tags — fall through to recovery.
   }
 
-  // Fallback: mine keywords from the raw text.
+  // ---- JSON parse failed (e.g. truncated): recover quoted string values ----
+  const recovered = normalizeTags(recoverTruncatedTags(s))
+  if (recovered.length) {
+    logCount(recovered.length, 'recovered')
+    return {
+      tags: recovered,
+      description: extractStringField(s, 'description'),
+      ocr_text: cleanOcr(extractStringField(s, 'ocr_text')),
+      recovered: true,
+    }
+  }
+
+  // ---- Last resort: keyword extraction from plain text ----
   const tags = keywordsFromText(text)
   logCount(tags.length, 'text fallback')
   if (!tags.length) return null
@@ -375,7 +427,11 @@ async function tagWithGemini(base64, mimeType) {
               ],
             },
           ],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 1024,
+            response_mime_type: 'application/json',
+          },
         }),
       })
     } catch (e) {
@@ -425,7 +481,7 @@ async function tagWithOpenRouter(model, base64, mimeType) {
     body: JSON.stringify({
       model: model.id,
       temperature: 0.2,
-      max_tokens: 800,
+      max_tokens: 1024,
       messages: [
         {
           role: 'user',
@@ -483,7 +539,7 @@ async function tagWithNvidia(model, base64, mimeType) {
           ],
         },
       ],
-      max_tokens: 512,
+      max_tokens: 1024,
       temperature: 0.2,
     }),
   })
