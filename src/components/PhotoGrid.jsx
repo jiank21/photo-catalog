@@ -1,4 +1,4 @@
-import { Image as ImageIcon } from 'lucide-react'
+import { Image as ImageIcon, Check } from 'lucide-react'
 
 const STATUS_LABELS = {
   tagged: 'tagged',
@@ -38,10 +38,22 @@ function formatDate(d) {
   }
 }
 
-function PhotoCard({ photo, onOpen }) {
+function SelectBox({ selected }) {
+  return (
+    <span className={`select-box${selected ? ' is-checked' : ''}`}>
+      {selected && <Check size={13} strokeWidth={3} />}
+    </span>
+  )
+}
+
+function PhotoCard({ photo, onActivate, selectMode, selected }) {
   const tags = photo.tags || []
   return (
-    <button type="button" className="photo-card" onClick={() => onOpen(photo)}>
+    <button
+      type="button"
+      className={`photo-card${selected ? ' is-selected' : ''}`}
+      onClick={() => onActivate(photo)}
+    >
       <div className="photo-card__thumb">
         {photo.thumbnail_base64 ? (
           <img src={photo.thumbnail_base64} alt={photo.filename} loading="lazy" />
@@ -50,6 +62,7 @@ function PhotoCard({ photo, onOpen }) {
             <ImageIcon size={28} />
           </div>
         )}
+        {selectMode && <SelectBox selected={selected} />}
         <StatusBadge status={photo.tag_status} />
       </div>
       <div className="photo-card__body">
@@ -73,11 +86,16 @@ function PhotoCard({ photo, onOpen }) {
   )
 }
 
-function PhotoRow({ photo, onOpen }) {
+function PhotoRow({ photo, onActivate, selectMode, selected }) {
   const tags = photo.tags || []
   return (
-    <button type="button" className="photo-row" onClick={() => onOpen(photo)}>
+    <button
+      type="button"
+      className={`photo-row${selected ? ' is-selected' : ''}`}
+      onClick={() => onActivate(photo)}
+    >
       <div className="photo-row__thumb">
+        {selectMode && <SelectBox selected={selected} />}
         {photo.thumbnail_base64 ? (
           <img src={photo.thumbnail_base64} alt={photo.filename} loading="lazy" />
         ) : (
@@ -108,7 +126,17 @@ function PhotoRow({ photo, onOpen }) {
   )
 }
 
-export default function PhotoGrid({ photos, onOpen, loading, hasMore, onLoadMore, view = 'grid' }) {
+export default function PhotoGrid({
+  photos,
+  onOpen,
+  loading,
+  hasMore,
+  onLoadMore,
+  view = 'grid',
+  selectMode = false,
+  selectedIds,
+  onToggleSelect,
+}) {
   if (!loading && photos.length === 0) {
     return (
       <div className="empty-state">
@@ -118,6 +146,9 @@ export default function PhotoGrid({ photos, onOpen, loading, hasMore, onLoadMore
     )
   }
 
+  // In select mode, clicking activates selection; otherwise it opens the modal.
+  const activate = (photo) => (selectMode ? onToggleSelect?.(photo.id) : onOpen(photo))
+  const isSelected = (id) => !!selectedIds && selectedIds.has(id)
   const isList = view === 'list'
 
   return (
@@ -134,13 +165,25 @@ export default function PhotoGrid({ photos, onOpen, loading, hasMore, onLoadMore
             <span>Status</span>
           </div>
           {photos.map((p) => (
-            <PhotoRow key={p.id} photo={p} onOpen={onOpen} />
+            <PhotoRow
+              key={p.id}
+              photo={p}
+              onActivate={activate}
+              selectMode={selectMode}
+              selected={isSelected(p.id)}
+            />
           ))}
         </div>
       ) : (
         <div className={`photo-grid photo-grid--${view}`}>
           {photos.map((p) => (
-            <PhotoCard key={p.id} photo={p} onOpen={onOpen} />
+            <PhotoCard
+              key={p.id}
+              photo={p}
+              onActivate={activate}
+              selectMode={selectMode}
+              selected={isSelected(p.id)}
+            />
           ))}
         </div>
       )}

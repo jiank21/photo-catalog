@@ -21,7 +21,9 @@ function shortFolder(path) {
 export default function SectionManager({
   sections = [],
   activeSection = 'all',
+  activeFolderPath = null,
   onSelectSection,
+  onSelectFolder,
   onRefresh,
   onScanToSection,
   onRetag,
@@ -185,11 +187,19 @@ export default function SectionManager({
                 ) : (
                   <ul className="folder-list">
                     {s.folders.map((f) => (
-                      <li key={f.folder_path} className="folder-list__item">
-                        <span className="folder-list__name" title={f.folder_path}>
+                      <li
+                        key={f.folder_path}
+                        className={`folder-list__item${activeFolderPath === f.folder_path ? ' is-active' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="folder-list__name"
+                          title={`Filter foto di ${f.folder_path}`}
+                          onClick={() => onSelectFolder?.(f.folder_path)}
+                        >
                           <Folder size={12} /> {shortFolder(f.folder_path)}
                           <span className="folder-list__count">{f.count}</span>
-                        </span>
+                        </button>
                         <span className="folder-list__actions">
                           <button
                             type="button"

@@ -231,6 +231,13 @@ export async function deleteFolder(folderPath) {
   if (error) throw error
 }
 
+/** Delete a set of photos (and cascaded tags) by id. */
+export async function deletePhotos(ids = []) {
+  if (!ids.length) return
+  const { error } = await supabase.from('photos').delete().in('id', ids)
+  if (error) throw error
+}
+
 // ---------------- Re-tag support ----------------
 
 /** Fetch photos (with stored thumbnail) for a re-tag scope. */

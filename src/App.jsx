@@ -1,10 +1,21 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Camera, AlertCircle, LayoutGrid, Grid2x2, List } from 'lucide-react'
+import {
+  Camera,
+  AlertCircle,
+  LayoutGrid,
+  Grid2x2,
+  List,
+  CheckSquare,
+  RefreshCw,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {
   searchPhotos,
   getFolders,
   getStats,
   getSections,
+  deletePhotos,
   hasSupabaseConfig,
 } from './lib/supabase'
 import Scanner from './components/Scanner'
@@ -48,6 +59,7 @@ export default function App() {
   const [status, setStatus] = useState('all')
   const [folder, setFolder] = useState('all')
   const [activeSection, setActiveSection] = useState('all')
+  const [activeFolderPath, setActiveFolderPath] = useState(null)
 
   const [view, setView] = useState(() => {
     if (typeof localStorage === 'undefined') return 'grid'
@@ -71,6 +83,11 @@ export default function App() {
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
 
+  // Multi-select
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+
   const scannerRef = useRef(null)
 
   // Debounced query value.
@@ -82,16 +99,17 @@ export default function App() {
     return () => clearTimeout(debounceRef.current)
   }, [query])
 
-  // Client-side filter (status + folder + section) on top of server search.
+  // Client-side filter (status + folder + section + folder_path).
   const applyFilters = useCallback(
     (rows) =>
       rows.filter((p) => {
         if (status !== 'all' && p.tag_status !== status) return false
         if (folder !== 'all' && p.folder !== folder) return false
         if (activeSection !== 'all' && p.section_id !== activeSection) return false
+        if (activeFolderPath && p.folder_path !== activeFolderPath) return false
         return true
       }),
-    [status, folder, activeSection],
+    [status, folder, activeSection, activeFolderPath],
   )
 
   const load = useCallback(
@@ -119,7 +137,7 @@ export default function App() {
     setOffset(0)
     load(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, status, folder, activeSection])
+  }, [debouncedQuery, status, folder, activeSection, activeFolderPath])
 
   const refreshMeta = useCallback(async () => {
     if (!hasSupabaseConfig) return
@@ -150,6 +168,72 @@ export default function App() {
   const handleRetagPhoto = async (photo) =>
     scannerRef.current?.retag({ scope: 'photo', value: photo, label: photo.filename })
 
+  // Selecting a section clears any active folder filter.
+  const handleSelectSection = (id) => {
+    setActiveSection(id)
+    setActiveFolderPath(null)
+  }
+  const handleSelectFolder = (folderPath) => {
+    setActiveFolderPath((cur) => (cur === folderPath ? null : folderPath))
+  }
+
+  // ---------------- Multi-select handlers ----------------
+  const toggleSelectMode = () => {
+    setSelectMode((m) => {
+      if (m) setSelectedIds(new Set()) // leaving select mode → clear
+      return !m
+    })
+  }
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const selectAllVisible = () => setSelectedIds(new Set(photos.map((p) => p.id)))
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setSelectMode(false)
+  }
+
+  const selectedPhotos = photos.filter((p) => selectedIds.has(p.id))
+
+  const bulkRetag = async () => {
+    if (!selectedPhotos.length) return
+    setBulkBusy(true)
+    try {
+      await scannerRef.current?.retag({
+        scope: 'photo',
+        value: selectedPhotos,
+        label: `${selectedPhotos.length} foto terpilih`,
+      })
+      clearSelection()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const bulkDelete = async () => {
+    const ids = [...selectedIds]
+    if (!ids.length) return
+    if (!window.confirm(`Hapus ${ids.length} foto dari katalog? Tindakan ini tidak bisa dibatalkan.`))
+      return
+    setBulkBusy(true)
+    try {
+      await deletePhotos(ids)
+      clearSelection()
+      setOffset(0)
+      await load(true)
+      await refreshMeta()
+    } catch (e) {
+      alert(`Gagal menghapus: ${e.message}`)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   return (
     <div className="app">
       <header className="app__header">
@@ -172,7 +256,9 @@ export default function App() {
         <SectionManager
           sections={sections}
           activeSection={activeSection}
-          onSelectSection={setActiveSection}
+          activeFolderPath={activeFolderPath}
+          onSelectSection={handleSelectSection}
+          onSelectFolder={handleSelectFolder}
           onRefresh={refreshMeta}
           onScanToSection={handleScanToSection}
           onRetag={handleRetag}
@@ -191,8 +277,53 @@ export default function App() {
               onFolderChange={setFolder}
               folders={folders}
             />
+            <button
+              type="button"
+              className={`btn${selectMode ? ' btn--primary' : ''}`}
+              onClick={toggleSelectMode}
+              title="Pilih beberapa foto untuk aksi massal"
+            >
+              <CheckSquare size={16} /> {selectMode ? 'Mode Pilih' : 'Pilih Foto'}
+            </button>
             <ViewToggle view={view} onChange={setView} />
           </div>
+
+          {activeFolderPath && (
+            <div className="filter-chip">
+              Folder: <b>{activeFolderPath}</b>
+              <button type="button" onClick={() => setActiveFolderPath(null)} aria-label="Hapus filter">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          {selectMode && (
+            <div className="select-toolbar">
+              <span className="select-toolbar__count">{selectedIds.size} foto dipilih</span>
+              <button type="button" className="btn btn--small" onClick={selectAllVisible}>
+                Pilih Semua
+              </button>
+              <button
+                type="button"
+                className="btn btn--small"
+                onClick={bulkRetag}
+                disabled={bulkBusy || selectedIds.size === 0}
+              >
+                <RefreshCw size={14} /> Re-tag Terpilih
+              </button>
+              <button
+                type="button"
+                className="btn btn--small btn--danger"
+                onClick={bulkDelete}
+                disabled={bulkBusy || selectedIds.size === 0}
+              >
+                <Trash2 size={14} /> Hapus Terpilih
+              </button>
+              <button type="button" className="btn btn--small" onClick={clearSelection}>
+                <X size={14} /> Batal Pilih
+              </button>
+            </div>
+          )}
 
           <PhotoGrid
             photos={photos}
@@ -201,6 +332,9 @@ export default function App() {
             onLoadMore={() => load(false)}
             onOpen={setSelected}
             view={view}
+            selectMode={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
           />
         </main>
       </div>
