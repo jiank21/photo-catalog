@@ -900,6 +900,49 @@ code {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
+/* ---------------- Grid title + section grouping ---------------- */
+.grid-titlebar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 2px;
+}
+.grid-titlebar__title {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grid-titlebar__count {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.photo-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.photo-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.photo-group__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ---------------- List view ---------------- */
 .photo-list {
   display: flex;
@@ -915,6 +958,17 @@ code {
   gap: 12px;
   align-items: center;
   padding: 8px 12px;
+}
+/* Extra leftmost checkbox column while selecting. */
+.photo-list.is-select .photo-list__head,
+.photo-list.is-select .photo-row {
+  grid-template-columns: 32px 60px 2fr 2fr 100px 80px 2fr 90px;
+}
+.photo-list__check,
+.photo-row__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .photo-list__head {
   font-size: 11px;
@@ -997,44 +1051,46 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* Checkbox now sits in its own column / bar — never overlapping the image. */
 .select-box {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 2;
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  border: 2px solid #fff;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
+  border: 2px solid var(--muted);
+  background: var(--surface-2);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  color: var(--text);
+  flex-shrink: 0;
 }
-.select-box.is-checked {
+.select-box.is-checked,
+.select-box.is-indeterminate {
   background: var(--accent);
   border-color: var(--accent);
   color: #0b0e16;
 }
+.select-box--master {
+  cursor: pointer;
+  padding: 0;
+}
+.select-box--master:hover {
+  border-color: var(--accent);
+}
 
+.photo-card__checkbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 8px 0;
+}
 .photo-card.is-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent);
-}
-.photo-row__thumb {
-  position: relative;
+  background: var(--accent-dim);
 }
 .photo-row.is-selected {
   background: var(--accent-dim);
   box-shadow: inset 3px 0 0 var(--accent);
-}
-.photo-row .select-box {
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
 }
 
 /* ---------------- Active folder filter chip ---------------- */
@@ -1197,6 +1253,16 @@ code {
   }
   .photo-row__status {
     grid-area: status;
+  }
+  .photo-list.is-select .photo-row {
+    grid-template-columns: 26px 60px 1fr 90px;
+    grid-template-areas:
+      'check thumb name status'
+      'check thumb folder folder'
+      'check thumb tags tags';
+  }
+  .photo-row__check {
+    grid-area: check;
   }
 }
 @media (max-width: 680px) {

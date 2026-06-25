@@ -194,7 +194,13 @@ export default function App() {
       return next
     })
   }
-  const selectAllVisible = () => setSelectedIds(new Set(photos.map((p) => p.id)))
+  // Master checkbox: select all visible, or deselect all (staying in select mode).
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const allSelected = photos.length > 0 && photos.every((p) => prev.has(p.id))
+      return allSelected ? new Set() : new Set(photos.map((p) => p.id))
+    })
+  }
   const clearSelection = () => {
     setSelectedIds(new Set())
     setSelectMode(false)
@@ -304,9 +310,6 @@ export default function App() {
           {selectMode && (
             <div className="select-toolbar">
               <span className="select-toolbar__count">{selectedIds.size} foto dipilih</span>
-              <button type="button" className="btn btn--small" onClick={selectAllVisible}>
-                Pilih Semua
-              </button>
               <button
                 type="button"
                 className="btn btn--small"
@@ -320,11 +323,12 @@ export default function App() {
                 className="btn btn--small btn--danger"
                 onClick={bulkDelete}
                 disabled={bulkBusy || selectedIds.size === 0}
+                title="Hapus foto dari katalog (file asli tidak dihapus)"
               >
-                <Trash2 size={14} /> Hapus Terpilih
+                <Trash2 size={14} /> Hapus Entry
               </button>
               <button type="button" className="btn btn--small" onClick={clearSelection}>
-                <X size={14} /> Batal Pilih
+                <X size={14} /> Cancel
               </button>
             </div>
           )}
@@ -339,6 +343,10 @@ export default function App() {
             selectMode={selectMode}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+            sections={sections}
+            activeSection={activeSection}
+            activeFolderPath={activeFolderPath}
           />
         </main>
       </div>
