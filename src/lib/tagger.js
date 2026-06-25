@@ -33,6 +33,12 @@ export const MODELS = [
     provider: 'openrouter',
     dailyLimit: 200,
   },
+  {
+    id: 'google/gemma-4-31b-it:free',
+    label: 'Gemma 4 31B (vision)',
+    provider: 'openrouter',
+    dailyLimit: 200,
+  },
 ]
 
 // ---------------- Per-session usage tracking ----------------
@@ -67,31 +73,111 @@ const PROMPT = `You are an image tagging assistant. Analyse the photo and respon
 }`
 
 // ---------------- Response parsing ----------------
-function parseModelJson(text) {
-  if (!text) return null
-  let s = text.trim()
-  // Strip ```json ... ``` or ``` ... ``` fences.
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fence) s = fence[1].trim()
-  // Otherwise grab the first {...} block.
-  if (!s.startsWith('{')) {
-    const brace = s.match(/\{[\s\S]*\}/)
-    if (brace) s = brace[0]
+
+// Words to drop when falling back to extracting tags from free text.
+const STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'is', 'are', 'was',
+  'were', 'be', 'this', 'that', 'these', 'those', 'with', 'for', 'it', 'its', 'as',
+  'by', 'from', 'photo', 'image', 'picture', 'shows', 'showing', 'show', 'there',
+  'here', 'has', 'have', 'contains', 'depicts', 'appears', 'seems', 'some', 'into',
+  'tags', 'tag', 'description', 'json', 'array', 'keywords', 'object', 'response',
+  'dan', 'atau', 'yang', 'di', 'ke', 'dari', 'ini', 'itu', 'sebuah', 'dengan',
+  'gambar', 'foto', 'adalah', 'pada', 'untuk', 'ada', 'terdapat',
+])
+
+function normalizeTags(arr) {
+  if (!Array.isArray(arr)) return []
+  const seen = new Set()
+  const out = []
+  for (const t of arr) {
+    const clean = String(t).toLowerCase().trim().replace(/^["'#]+|["'.,;]+$/g, '')
+    if (!clean || seen.has(clean)) continue
+    seen.add(clean)
+    out.push(clean)
+    if (out.length >= 15) break
   }
-  try {
-    const obj = JSON.parse(s)
-    return {
-      tags: Array.isArray(obj.tags)
-        ? obj.tags.map((t) => String(t).toLowerCase().trim()).filter(Boolean).slice(0, 15)
-        : [],
-      description: typeof obj.description === 'string' ? obj.description : '',
-      ocr_text:
-        obj.ocr_text && String(obj.ocr_text).trim() && String(obj.ocr_text).trim().toLowerCase() !== 'null'
-          ? String(obj.ocr_text).trim()
-          : null,
+  return out
+}
+
+// Last-resort: pull keyword-ish tokens out of arbitrary text.
+function keywordsFromText(text) {
+  // Remove JSON punctuation/braces so leftover prose is cleaner.
+  const cleaned = text
+    .replace(/```[a-z]*|```/gi, ' ')
+    .replace(/[{}\[\]"`]/g, ' ')
+    .replace(/\b(tags?|description|ocr_text)\b\s*:/gi, ' ')
+  const words = cleaned
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w) && !/^\d+$/.test(w))
+  const seen = new Set()
+  const out = []
+  for (const w of words) {
+    if (seen.has(w)) continue
+    seen.add(w)
+    out.push(w)
+    if (out.length >= 15) break
+  }
+  return out
+}
+
+function firstSentence(text) {
+  const s = text.replace(/```[a-z]*|```/gi, ' ').replace(/[{}\[\]"`]/g, ' ').trim()
+  const m = s.match(/[^.!?\n]{8,}?[.!?]/)
+  return (m ? m[0] : s).trim().slice(0, 200)
+}
+
+/**
+ * Best-effort parse of a model response into { tags, description, ocr_text }.
+ * Tries, in order:
+ *   1. JSON inside a ```json fence
+ *   2. The first {...} JSON block anywhere in the text
+ *   3. Falls back to extracting keyword tokens from plain text
+ * Never throws; returns null only when nothing usable could be found.
+ */
+function parseModelJson(text) {
+  if (!text || !text.trim()) return null
+  const raw = text.trim()
+
+  // Candidate JSON strings to attempt, most-specific first.
+  const candidates = []
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fence) candidates.push(fence[1].trim())
+  const brace = raw.match(/\{[\s\S]*\}/)
+  if (brace) candidates.push(brace[0])
+  if (raw.startsWith('{')) candidates.push(raw)
+
+  for (const c of candidates) {
+    try {
+      const obj = JSON.parse(c)
+      const tags = normalizeTags(obj.tags)
+      if (tags.length) {
+        return {
+          tags,
+          description: typeof obj.description === 'string' ? obj.description : '',
+          ocr_text:
+            obj.ocr_text &&
+            String(obj.ocr_text).trim() &&
+            String(obj.ocr_text).trim().toLowerCase() !== 'null'
+              ? String(obj.ocr_text).trim()
+              : null,
+        }
+      }
+      // Parsed JSON but no usable tags array — keep trying / fall through.
+    } catch {
+      // Not valid JSON, try the next candidate.
     }
-  } catch {
-    return null
+  }
+
+  // Fallback: treat the whole response as free text and mine keywords.
+  const tags = keywordsFromText(raw)
+  if (!tags.length) return null
+  return {
+    tags,
+    description: firstSentence(raw),
+    ocr_text: null,
+    fallback: true,
   }
 }
 
@@ -208,11 +294,18 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
           ? await callGemini(model, base64, mimeType)
           : await callOpenRouter(model, base64, mimeType)
 
+      // Debug: surface exactly what the model returned.
+      console.log(`[tagger] ${model.label} raw response:`, raw)
+
       const parsed = parseModelJson(raw)
       if (!parsed || !parsed.tags.length) {
-        // Treat unparseable output as a soft failure; try next model.
-        console.warn(`[tagger] ${model.label} returned unusable output, trying next`)
+        // Only here if even the free-text keyword fallback found nothing.
+        console.warn(`[tagger] ${model.label} returned no usable tags, trying next`, raw)
         continue
+      }
+
+      if (parsed.fallback) {
+        console.info(`[tagger] ${model.label} output was not valid JSON; used text fallback`, parsed.tags)
       }
 
       usage[model.id].used += 1

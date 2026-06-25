@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { X, Copy, Check, Plus, FolderInput } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { X, Copy, Check, Plus, FolderInput, RefreshCw } from 'lucide-react'
 import { supabase, addManualTag, removeTag } from '../lib/supabase'
 import TagBadge from './TagBadge'
 
@@ -24,27 +24,51 @@ function formatDate(d) {
   }
 }
 
-export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged }) {
+export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged, onRetagPhoto }) {
   const [copied, setCopied] = useState(false)
   const [tagRows, setTagRows] = useState([])
   const [newTag, setNewTag] = useState('')
   const [saving, setSaving] = useState(false)
+  const [retagging, setRetagging] = useState(false)
+
+  const loadTags = useCallback(async () => {
+    if (!photo) return
+    const { data } = await supabase
+      .from('tags')
+      .select('tag, source')
+      .eq('photo_id', photo.id)
+      .order('source', { ascending: false })
+    setTagRows(data || [])
+  }, [photo])
 
   useEffect(() => {
-    if (!photo) return
     let active = true
     ;(async () => {
-      const { data } = await supabase
-        .from('tags')
-        .select('tag, source')
-        .eq('photo_id', photo.id)
-        .order('source', { ascending: false })
+      const { data } = photo
+        ? await supabase
+            .from('tags')
+            .select('tag, source')
+            .eq('photo_id', photo.id)
+            .order('source', { ascending: false })
+        : { data: [] }
       if (active) setTagRows(data || [])
     })()
     return () => {
       active = false
     }
   }, [photo])
+
+  const handleRetag = async () => {
+    if (!photo || !onRetagPhoto) return
+    setRetagging(true)
+    try {
+      await onRetagPhoto(photo)
+      await loadTags()
+      onTagsChanged?.()
+    } finally {
+      setRetagging(false)
+    }
+  }
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -105,7 +129,21 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged 
           </div>
 
           <div className="modal__info">
-            <h2 className="modal__title">{photo.filename}</h2>
+            <div className="modal__titlerow">
+              <h2 className="modal__title">{photo.filename}</h2>
+              {onRetagPhoto && photo.thumbnail_base64 && (
+                <button
+                  type="button"
+                  className="btn btn--small"
+                  onClick={handleRetag}
+                  disabled={retagging}
+                  title="Jalankan AI tagging ulang untuk foto ini"
+                >
+                  <RefreshCw size={14} className={retagging ? 'spin' : undefined} />
+                  {retagging ? 'Re-tagging…' : 'Re-tag foto ini'}
+                </button>
+              )}
+            </div>
 
             {/* Filepath + copy */}
             <div className="field">

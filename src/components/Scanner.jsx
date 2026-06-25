@@ -1,10 +1,14 @@
-import { useRef, useState, useCallback } from 'react'
-import { FolderSearch, Pause, Play, Square, AlertTriangle } from 'lucide-react'
+import { useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { FolderSearch, Pause, Play, Square, AlertTriangle, RefreshCw } from 'lucide-react'
 import exifr from 'exifr'
 import {
   createScanSession,
   updateScanSession,
   upsertPhoto,
+  createSection,
+  getPhotosForRetag,
+  applyTags,
+  updatePhotoStatus,
 } from '../lib/supabase'
 import {
   tagImage,
@@ -26,24 +30,6 @@ const CANVAS_EXT = RASTER_EXT
 function extOf(name) {
   const i = name.lastIndexOf('.')
   return i === -1 ? '' : name.slice(i + 1).toLowerCase()
-}
-
-function mimeFor(ext) {
-  switch (ext) {
-    case 'png':
-      return 'image/png'
-    case 'webp':
-      return 'image/webp'
-    case 'gif':
-      return 'image/gif'
-    case 'bmp':
-      return 'image/bmp'
-    case 'tiff':
-    case 'tif':
-      return 'image/tiff'
-    default:
-      return 'image/jpeg'
-  }
 }
 
 /** Recursively collect file handles for supported images. */
@@ -81,7 +67,6 @@ async function makeThumbnail(blob) {
     const out = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.72 })
     dataUrl = await blobToDataUrl(out)
   } else {
-    // Fallback to a regular canvas.
     const canvas = document.createElement('canvas')
     canvas.width = w
     canvas.height = h
@@ -112,16 +97,22 @@ const initialProgress = {
   skipped: 0,
   current: '',
   currentModel: '',
+  label: '',
 }
 
-export default function Scanner({ onScanDone }) {
+const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) {
   const [state, setState] = useState('idle') // idle | scanning | paused | done | exhausted
+  const [phase, setPhase] = useState('scan') // scan | retag
   const [progress, setProgress] = useState(initialProgress)
   const [usageRows, setUsageRows] = useState(getUsage())
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState('')
 
-  // Mutable control flags (don't trigger re-render).
+  // Section-chooser modal: { files, rootName } while waiting for a choice.
+  const [chooser, setChooser] = useState(null)
+  const [chooserSection, setChooserSection] = useState('') // '' = none, '__new__', or id
+  const [newSectionName, setNewSectionName] = useState('')
+
   const pausedRef = useRef(false)
   const abortRef = useRef(false)
   const startTimeRef = useRef(0)
@@ -134,231 +125,264 @@ export default function Scanner({ onScanDone }) {
     }
   }, [])
 
-  const startScan = useCallback(async () => {
-    if (!supportsFSA) return
-    setError('')
-    setSummary(null)
-    resetUsage()
-    refreshUsage()
+  // ---------------- Core scan loop ----------------
+  const runScan = useCallback(
+    async (files, rootName, sectionId) => {
+      abortRef.current = false
+      pausedRef.current = false
+      resetUsage()
+      refreshUsage()
+      setError('')
+      setSummary(null)
+      setPhase('scan')
+      setState('scanning')
+      setProgress({ ...initialProgress, total: files.length, label: rootName })
+      startTimeRef.current = Date.now()
 
-    let dirHandle
-    try {
-      dirHandle = await window.showDirectoryPicker({ mode: 'read' })
-    } catch {
-      return // user cancelled
-    }
-
-    abortRef.current = false
-    pausedRef.current = false
-    setState('scanning')
-    setProgress(initialProgress)
-    startTimeRef.current = Date.now()
-
-    const rootName = dirHandle.name
-
-    // First pass: collect all files so we can show an accurate total.
-    const files = []
-    for await (const f of walk(dirHandle, rootName)) files.push(f)
-
-    let session
-    try {
-      session = await createScanSession(rootName)
-    } catch (e) {
-      setError(`Gagal membuat scan session: ${e.message}. Cek konfigurasi Supabase.`)
-      setState('idle')
-      return
-    }
-
-    const counters = { tagged: 0, pending: 0, failed: 0, skipped: 0 }
-    setProgress({ ...initialProgress, total: files.length })
-
-    for (let i = 0; i < files.length; i++) {
-      if (abortRef.current) break
-      await waitWhilePaused()
-      if (abortRef.current) break
-
-      const { handle, relPath, folder } = files[i]
-      const ext = extOf(handle.name)
-      const isRaw = RAW_EXT.has(ext)
-      const canDecode = CANVAS_EXT.has(ext)
-
-      setProgress((p) => ({ ...p, current: handle.name, currentModel: '' }))
-
-      let file
+      let session
       try {
-        file = await handle.getFile()
-      } catch {
-        counters.failed++
-        setProgress((p) => ({ ...p, done: p.done + 1, failed: counters.failed }))
-        continue
-      }
-
-      // Absolute-ish path for reference. The picker only gives relative
-      // paths; we store the relative path rooted at the chosen folder.
-      const filepath = relPath
-      const folderPath = folder || rootName
-
-      const baseRow = {
-        filename: handle.name,
-        filepath,
-        folder: folder ? folder.split('/').pop() : rootName,
-        folder_path: folderPath,
-        file_size: file.size,
-        scan_session_id: session.id,
-      }
-
-      // RAW (and HEIC) → store metadata only, skip thumbnail + AI.
-      if (isRaw || !canDecode) {
-        let takenAt = null
-        try {
-          const exif = await exifr.parse(file).catch(() => null)
-          takenAt = exif?.DateTimeOriginal || exif?.CreateDate || null
-        } catch {
-          /* ignore */
-        }
-        try {
-          await upsertPhoto(
-            {
-              ...baseRow,
-              taken_at: takenAt ? new Date(takenAt).toISOString() : null,
-              tag_status: 'skipped',
-              tag_model: null,
-              thumbnail_base64: null,
-            },
-            [],
-          )
-        } catch (e) {
-          console.warn('upsert skipped photo failed:', e.message)
-        }
-        counters.skipped++
-        setProgress((p) => ({ ...p, done: p.done + 1, skipped: counters.skipped }))
-        continue
-      }
-
-      // Decodable raster image: thumbnail + EXIF + AI tag.
-      let thumb = null
-      let exifDate = null
-      try {
-        const [t, exif] = await Promise.all([
-          makeThumbnail(file),
-          exifr.parse(file).catch(() => null),
-        ])
-        thumb = t
-        exifDate = exif?.DateTimeOriginal || exif?.CreateDate || null
+        session = await createScanSession(rootName)
       } catch (e) {
-        // Could not decode (corrupt / unsupported) → mark failed.
-        console.warn('thumbnail failed for', handle.name, e.message)
-        try {
-          await upsertPhoto({ ...baseRow, tag_status: 'failed' }, [])
-        } catch {
-          /* ignore */
-        }
-        counters.failed++
-        setProgress((p) => ({ ...p, done: p.done + 1, failed: counters.failed }))
-        continue
+        setError(`Gagal membuat scan session: ${e.message}. Cek konfigurasi Supabase.`)
+        setState('idle')
+        return
       }
 
-      const base64 = thumb.dataUrl.split(',')[1]
+      const counters = { tagged: 0, pending: 0, failed: 0, skipped: 0 }
 
-      let tagResult = null
-      let status = 'pending'
-      try {
-        tagResult = await tagImage(base64, 'image/jpeg')
-        status = 'tagged'
-        setProgress((p) => ({ ...p, currentModel: tagResult.modelLabel || tagResult.model }))
-      } catch (e) {
-        if (e instanceof RateLimitExhaustedError) {
-          // Save this one as pending and stop the batch.
+      for (let i = 0; i < files.length; i++) {
+        if (abortRef.current) break
+        await waitWhilePaused()
+        if (abortRef.current) break
+
+        const { handle, relPath, folder } = files[i]
+        const ext = extOf(handle.name)
+        const isRaw = RAW_EXT.has(ext)
+        const canDecode = CANVAS_EXT.has(ext)
+
+        setProgress((p) => ({ ...p, current: handle.name, currentModel: '' }))
+
+        let file
+        try {
+          file = await handle.getFile()
+        } catch {
+          counters.failed++
+          setProgress((p) => ({ ...p, done: p.done + 1, failed: counters.failed }))
+          continue
+        }
+
+        const baseRow = {
+          filename: handle.name,
+          filepath: relPath,
+          folder: folder ? folder.split('/').pop() : rootName,
+          folder_path: folder || rootName,
+          file_size: file.size,
+          scan_session_id: session.id,
+          section_id: sectionId || null,
+        }
+
+        // RAW (and HEIC) → metadata only, skip thumbnail + AI.
+        if (isRaw || !canDecode) {
+          let takenAt = null
+          try {
+            const exif = await exifr.parse(file).catch(() => null)
+            takenAt = exif?.DateTimeOriginal || exif?.CreateDate || null
+          } catch {
+            /* ignore */
+          }
           try {
             await upsertPhoto(
               {
                 ...baseRow,
-                width: thumb.width,
-                height: thumb.height,
-                taken_at: exifDate ? new Date(exifDate).toISOString() : null,
-                tag_status: 'pending',
+                taken_at: takenAt ? new Date(takenAt).toISOString() : null,
+                tag_status: 'skipped',
                 tag_model: null,
-                thumbnail_base64: thumb.dataUrl,
+                thumbnail_base64: null,
               },
               [],
             )
+          } catch (e) {
+            console.warn('upsert skipped photo failed:', e.message)
+          }
+          counters.skipped++
+          setProgress((p) => ({ ...p, done: p.done + 1, skipped: counters.skipped }))
+          continue
+        }
+
+        // Decodable raster: thumbnail + EXIF + AI tag.
+        let thumb = null
+        let exifDate = null
+        try {
+          const [t, exif] = await Promise.all([
+            makeThumbnail(file),
+            exifr.parse(file).catch(() => null),
+          ])
+          thumb = t
+          exifDate = exif?.DateTimeOriginal || exif?.CreateDate || null
+        } catch (e) {
+          console.warn('thumbnail failed for', handle.name, e.message)
+          try {
+            await upsertPhoto({ ...baseRow, tag_status: 'failed' }, [])
           } catch {
             /* ignore */
           }
-          counters.pending++
-          const finalDone = i + 1
-          refreshUsage()
-          setProgress((p) => ({ ...p, done: finalDone, pending: counters.pending }))
-          // Finalize as exhausted.
-          await updateScanSession(session.id, {
-            finished_at: new Date().toISOString(),
-            total_found: files.length,
-            total_tagged: counters.tagged,
-            total_failed: counters.failed,
-            status: 'aborted',
-          })
-          const remaining = files.length - finalDone
-          setSummary({
-            total: files.length,
-            ...counters,
-            remaining,
-            seconds: Math.round((Date.now() - startTimeRef.current) / 1000),
-            exhausted: true,
-          })
-          setState('exhausted')
-          onScanDone?.()
-          return
+          counters.failed++
+          setProgress((p) => ({ ...p, done: p.done + 1, failed: counters.failed }))
+          continue
         }
-        // Other tagging error → pending (not failed; image is fine).
-        status = 'pending'
-        console.warn('tagging error:', e.message)
+
+        const base64 = thumb.dataUrl.split(',')[1]
+        let tagResult = null
+        let status = 'pending'
+        try {
+          tagResult = await tagImage(base64, 'image/jpeg')
+          status = 'tagged'
+          setProgress((p) => ({ ...p, currentModel: tagResult.modelLabel || tagResult.model }))
+        } catch (e) {
+          if (e instanceof RateLimitExhaustedError) {
+            try {
+              await upsertPhoto(
+                {
+                  ...baseRow,
+                  width: thumb.width,
+                  height: thumb.height,
+                  taken_at: exifDate ? new Date(exifDate).toISOString() : null,
+                  tag_status: 'pending',
+                  tag_model: null,
+                  thumbnail_base64: thumb.dataUrl,
+                },
+                [],
+              )
+            } catch {
+              /* ignore */
+            }
+            counters.pending++
+            const finalDone = i + 1
+            refreshUsage()
+            setProgress((p) => ({ ...p, done: finalDone, pending: counters.pending }))
+            await updateScanSession(session.id, {
+              finished_at: new Date().toISOString(),
+              total_found: files.length,
+              total_tagged: counters.tagged,
+              total_failed: counters.failed,
+              status: 'aborted',
+            })
+            finishExhausted(counters, files.length - finalDone)
+            return
+          }
+          status = 'pending'
+          console.warn('tagging error:', e.message)
+        }
+
+        try {
+          await upsertPhoto(
+            {
+              ...baseRow,
+              width: thumb.width,
+              height: thumb.height,
+              taken_at: exifDate ? new Date(exifDate).toISOString() : null,
+              tag_status: status,
+              tag_model: tagResult?.model || null,
+              thumbnail_base64: thumb.dataUrl,
+            },
+            tagResult?.tags || [],
+          )
+        } catch (e) {
+          console.warn('upsert failed:', e.message)
+        }
+
+        if (status === 'tagged') counters.tagged++
+        else counters.pending++
+        refreshUsage()
+        setProgress((p) => ({
+          ...p,
+          done: p.done + 1,
+          tagged: counters.tagged,
+          pending: counters.pending,
+        }))
       }
 
-      try {
-        await upsertPhoto(
-          {
-            ...baseRow,
-            width: thumb.width,
-            height: thumb.height,
-            taken_at: exifDate ? new Date(exifDate).toISOString() : null,
-            tag_status: status,
-            tag_model: tagResult?.model || null,
-            thumbnail_base64: thumb.dataUrl,
-          },
-          tagResult?.tags || [],
-        )
-      } catch (e) {
-        console.warn('upsert failed:', e.message)
-      }
+      const aborted = abortRef.current
+      await updateScanSession(session.id, {
+        finished_at: new Date().toISOString(),
+        total_found: files.length,
+        total_tagged: counters.tagged,
+        total_failed: counters.failed,
+        status: aborted ? 'aborted' : 'finished',
+      })
+      finishDone(counters, files.length, aborted)
+    },
+    [waitWhilePaused, onScanDone],
+  )
 
-      if (status === 'tagged') counters.tagged++
-      else counters.pending++
-
+  // ---------------- Re-tag loop (uses stored thumbnails) ----------------
+  const runRetag = useCallback(
+    async (photos, label) => {
+      abortRef.current = false
+      pausedRef.current = false
+      resetUsage()
       refreshUsage()
-      setProgress((p) => ({
-        ...p,
-        done: p.done + 1,
-        tagged: counters.tagged,
-        pending: counters.pending,
-      }))
+      setError('')
+      setSummary(null)
+      setPhase('retag')
+      setState('scanning')
+      setProgress({ ...initialProgress, total: photos.length, label })
+      startTimeRef.current = Date.now()
 
-      if (allExhausted()) {
-        // Edge case: became exhausted on the last successful call.
+      const counters = { tagged: 0, pending: 0, failed: 0, skipped: 0 }
+
+      for (let i = 0; i < photos.length; i++) {
+        if (abortRef.current) break
+        await waitWhilePaused()
+        if (abortRef.current) break
+
+        const p = photos[i]
+        setProgress((s) => ({ ...s, current: p.filename, currentModel: '' }))
+
+        if (!p.thumbnail_base64) {
+          counters.skipped++
+          setProgress((s) => ({ ...s, done: s.done + 1, skipped: counters.skipped }))
+          continue
+        }
+
+        const base64 = p.thumbnail_base64.split(',')[1]
+        try {
+          const tagResult = await tagImage(base64, 'image/jpeg')
+          await applyTags(p.id, tagResult.tags, tagResult.model, 'tagged')
+          counters.tagged++
+          refreshUsage()
+          setProgress((s) => ({
+            ...s,
+            done: s.done + 1,
+            tagged: counters.tagged,
+            currentModel: tagResult.modelLabel || tagResult.model,
+          }))
+        } catch (e) {
+          if (e instanceof RateLimitExhaustedError) {
+            await updatePhotoStatus(p.id, 'pending')
+            counters.pending++
+            const finalDone = i + 1
+            refreshUsage()
+            setProgress((s) => ({ ...s, done: finalDone, pending: counters.pending }))
+            finishExhausted(counters, photos.length - finalDone)
+            return
+          }
+          await updatePhotoStatus(p.id, 'pending')
+          counters.pending++
+          console.warn('retag error:', e.message)
+          setProgress((s) => ({ ...s, done: s.done + 1, pending: counters.pending }))
+        }
       }
-    }
 
-    // Normal completion (or aborted by user).
-    const aborted = abortRef.current
-    await updateScanSession(session.id, {
-      finished_at: new Date().toISOString(),
-      total_found: files.length,
-      total_tagged: counters.tagged,
-      total_failed: counters.failed,
-      status: aborted ? 'aborted' : 'finished',
-    })
+      finishDone(counters, photos.length, abortRef.current)
+    },
+    [waitWhilePaused, onScanDone],
+  )
 
+  // ---------------- Finishers ----------------
+  function finishDone(counters, total, aborted) {
     setSummary({
-      total: files.length,
+      total,
       ...counters,
       remaining: 0,
       seconds: Math.round((Date.now() - startTimeRef.current) / 1000),
@@ -367,20 +391,89 @@ export default function Scanner({ onScanDone }) {
     })
     setState('done')
     onScanDone?.()
-  }, [waitWhilePaused, onScanDone])
-
-  const togglePause = () => {
-    pausedRef.current = !pausedRef.current
-    setState(pausedRef.current ? 'paused' : 'scanning')
   }
 
-  const stopScan = () => {
-    abortRef.current = true
-    pausedRef.current = false
+  function finishExhausted(counters, remaining) {
+    setSummary({
+      total: counters.tagged + counters.pending + counters.failed + counters.skipped + remaining,
+      ...counters,
+      remaining,
+      seconds: Math.round((Date.now() - startTimeRef.current) / 1000),
+      exhausted: true,
+    })
+    setState('exhausted')
+    onScanDone?.()
   }
+
+  // ---------------- Folder picking + section chooser ----------------
+  const pickFolder = useCallback(
+    async (presetSectionId) => {
+      if (!supportsFSA || state === 'scanning' || state === 'paused') return
+      let dirHandle
+      try {
+        dirHandle = await window.showDirectoryPicker({ mode: 'read' })
+      } catch {
+        return // cancelled
+      }
+      const rootName = dirHandle.name
+      const files = []
+      for await (const f of walk(dirHandle, rootName)) files.push(f)
+
+      if (presetSectionId) {
+        runScan(files, rootName, presetSectionId)
+      } else {
+        // Ask which section to scan into.
+        setChooserSection('')
+        setNewSectionName('')
+        setChooser({ files, rootName })
+      }
+    },
+    [state, runScan],
+  )
+
+  const confirmChooser = useCallback(async () => {
+    if (!chooser) return
+    const { files, rootName } = chooser
+    let sectionId = null
+    try {
+      if (chooserSection === '__new__') {
+        const created = await createSection({ name: newSectionName || rootName })
+        sectionId = created.id
+      } else if (chooserSection) {
+        sectionId = chooserSection
+      }
+    } catch (e) {
+      setError(`Gagal membuat section: ${e.message}`)
+    }
+    setChooser(null)
+    runScan(files, rootName, sectionId)
+  }, [chooser, chooserSection, newSectionName, runScan])
+
+  // ---------------- Imperative API for App / SectionManager ----------------
+  useImperativeHandle(ref, () => ({
+    scan: (presetSectionId) => pickFolder(presetSectionId),
+    retag: async ({ scope, value, label }) => {
+      if (state === 'scanning' || state === 'paused') return
+      let photos
+      if (scope === 'photo') {
+        photos = Array.isArray(value) ? value : [value]
+      } else {
+        try {
+          photos = await getPhotosForRetag({ scope, value })
+        } catch (e) {
+          setError(`Gagal ambil foto untuk re-tag: ${e.message}`)
+          return
+        }
+      }
+      if (!photos.length) {
+        setError('Tidak ada foto yang bisa di-retag (butuh thumbnail).')
+        return
+      }
+      await runRetag(photos, label || 'Re-tag')
+    },
+  }))
 
   // ---------------- Render ----------------
-
   if (!supportsFSA) {
     return (
       <div className="scanner scanner--warn">
@@ -400,18 +493,29 @@ export default function Scanner({ onScanDone }) {
     <div className="scanner">
       <div className="scanner__row">
         {!busy && (
-          <button type="button" className="btn btn--primary" onClick={startScan}>
+          <button type="button" className="btn btn--primary" onClick={() => pickFolder(null)}>
             <FolderSearch size={16} /> Pilih Folder &amp; Scan
           </button>
         )}
 
         {busy && (
           <>
-            <button type="button" className="btn" onClick={togglePause}>
+            <span className="scanner__phase">
+              {phase === 'retag' ? <RefreshCw size={15} /> : <FolderSearch size={15} />}
+              {phase === 'retag' ? 'Re-tagging' : 'Scanning'}
+              {progress.label ? `: ${progress.label}` : ''}
+            </span>
+            <button type="button" className="btn" onClick={() => {
+              pausedRef.current = !pausedRef.current
+              setState(pausedRef.current ? 'paused' : 'scanning')
+            }}>
               {state === 'paused' ? <Play size={16} /> : <Pause size={16} />}
               {state === 'paused' ? 'Resume' : 'Pause'}
             </button>
-            <button type="button" className="btn btn--danger" onClick={stopScan}>
+            <button type="button" className="btn btn--danger" onClick={() => {
+              abortRef.current = true
+              pausedRef.current = false
+            }}>
               <Square size={16} /> Stop
             </button>
           </>
@@ -427,7 +531,7 @@ export default function Scanner({ onScanDone }) {
           </div>
           <div className="scanner__progress-text">
             <span>
-              Foto {progress.done} / {progress.total} ({pct}%)
+              {phase === 'retag' ? 'Foto' : 'Foto'} {progress.done} / {progress.total} ({pct}%)
             </span>
             {progress.current && (
               <span className="scanner__current" title={progress.current}>
@@ -443,7 +547,6 @@ export default function Scanner({ onScanDone }) {
             <span style={{ color: 'var(--muted)' }}>skipped {progress.skipped}</span>
           </div>
 
-          {/* Per-model usage */}
           <div className="usage-grid">
             {usageRows.map((u) => (
               <div key={u.id} className={`usage-chip${u.exhausted ? ' usage-chip--out' : ''}`}>
@@ -472,11 +575,68 @@ export default function Scanner({ onScanDone }) {
 
       {state === 'done' && summary && (
         <div className="scanner__summary">
-          {summary.aborted ? 'Scan dihentikan.' : 'Scan selesai!'} Ditemukan {summary.total} foto ·{' '}
-          {summary.tagged} tagged · {summary.pending} pending · {summary.failed} failed ·{' '}
-          {summary.skipped} skipped · {summary.seconds}s
+          {summary.aborted ? 'Dihentikan.' : 'Selesai!'} {summary.total} foto · {summary.tagged}{' '}
+          tagged · {summary.pending} pending · {summary.failed} failed · {summary.skipped} skipped ·{' '}
+          {summary.seconds}s
+        </div>
+      )}
+
+      {/* Section chooser modal */}
+      {chooser && (
+        <div className="modal-overlay" onClick={() => setChooser(null)}>
+          <div className="modal modal--narrow" onClick={(e) => e.stopPropagation()}>
+            <div className="modal__info">
+              <h2 className="modal__title">Tambahkan ke section mana?</h2>
+              <p className="hint">
+                Folder <b>{chooser.rootName}</b> · {chooser.files.length} foto ditemukan.
+              </p>
+
+              <div className="field">
+                <label>Section</label>
+                <select
+                  className="select"
+                  style={{ width: '100%' }}
+                  value={chooserSection}
+                  onChange={(e) => setChooserSection(e.target.value)}
+                >
+                  <option value="">(Tanpa section)</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Buat section baru…</option>
+                </select>
+              </div>
+
+              {chooserSection === '__new__' && (
+                <div className="field">
+                  <label>Nama section baru</label>
+                  <input
+                    className="select"
+                    style={{ width: '100%' }}
+                    placeholder={chooser.rootName}
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              <div className="scanner__row" style={{ marginTop: 8 }}>
+                <button type="button" className="btn btn--primary" onClick={confirmChooser}>
+                  <FolderSearch size={15} /> Mulai Scan
+                </button>
+                <button type="button" className="btn" onClick={() => setChooser(null)}>
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
-}
+})
+
+export default Scanner
