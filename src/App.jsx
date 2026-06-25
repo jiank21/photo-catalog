@@ -26,6 +26,7 @@ import PhotoGrid from './components/PhotoGrid'
 import PhotoModal from './components/PhotoModal'
 import StatsBar from './components/StatsBar'
 import SectionManager from './components/SectionManager'
+import SettingsModal from './components/SettingsModal'
 
 const PAGE_SIZE = 60
 const VIEW_KEY = 'photo-catalog-view'
@@ -56,8 +57,9 @@ function ViewToggle({ view, onChange }) {
   )
 }
 
-export default function App() {
+export default function App({ onLogout }) {
   const [query, setQuery] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
   const [status, setStatus] = useState('all')
   const [folder, setFolder] = useState('all')
   const [activeSection, setActiveSection] = useState('all')
@@ -270,6 +272,7 @@ export default function App() {
           onRefresh={refreshMeta}
           onScanToSection={handleScanToSection}
           onRetag={handleRetag}
+          onOpenSettings={() => setShowSettings(true)}
         />
 
         <main className="app__main">
@@ -358,6 +361,10 @@ export default function App() {
         onTagsChanged={refreshMeta}
         onRetagPhoto={handleRetagPhoto}
       />
+
+      {showSettings && (
+        <SettingsModal onClose={() => setShowSettings(false)} onLogout={onLogout} />
+      )}
     </div>
   )
 }

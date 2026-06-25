@@ -1215,6 +1215,136 @@ code {
   }
 }
 
+/* ---------------- Login page ---------------- */
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 20px;
+}
+.login__card {
+  width: 100%;
+  max-width: 360px;
+  padding: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  text-align: center;
+  animation: fade-in 0.3s ease;
+}
+.login__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.login__title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.login__subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+.login__pin {
+  width: 200px;
+  text-align: center;
+  letter-spacing: 0.3em;
+  font-size: 24px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+}
+.login__pin:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.login__status {
+  min-height: 20px;
+  margin-top: 14px;
+}
+.login__error {
+  color: var(--failed);
+  font-size: 13px;
+}
+.login__loading {
+  color: var(--muted);
+  font-size: 13px;
+}
+.shake {
+  animation: shake 0.4s ease;
+}
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-8px);
+  }
+  75% {
+    transform: translateX(8px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------------- Settings ---------------- */
+.section-item--settings {
+  margin-top: 8px;
+  padding: 8px 10px;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  color: var(--muted);
+}
+.section-item--settings:hover {
+  color: var(--text);
+}
+.settings__section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings__form .select {
+  width: 100%;
+}
+.settings__msg {
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+.settings__msg--success {
+  color: var(--tagged);
+}
+.settings__msg--error {
+  color: var(--failed);
+}
+
 /* ---------------- Responsive ---------------- */
 @media (max-width: 900px) {
   .app__body {

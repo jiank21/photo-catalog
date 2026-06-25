@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Layers,
   Folder,
+  Settings,
 } from 'lucide-react'
 import { createSection, renameSection, deleteSection, deleteFolder } from '../lib/supabase'
 
@@ -27,6 +28,7 @@ export default function SectionManager({
   onRefresh,
   onScanToSection,
   onRetag,
+  onOpenSettings,
 }) {
   const [expanded, setExpanded] = useState({})
 
@@ -233,6 +235,11 @@ export default function SectionManager({
           </div>
         )
       })}
+
+      <button type="button" className="section-item section-item--settings" onClick={onOpenSettings}>
+        <Settings size={15} />
+        <span className="section-item__name">Pengaturan</span>
+      </button>
     </aside>
   )
 }
