@@ -1,11 +1,12 @@
 // ============================================================
 // tagger.js — Multi-model AI auto-tagging, all from the browser.
 //
-// Fallback chain (in order):
+// Fallback chain (in order, all CORS-friendly from the browser):
 //   1. Gemini           — auto-detects an available model
 //   2. OpenRouter Auto Free (openrouter/free)
-//   3. NVIDIA NIM       — meta/llama-3.2-11b-vision-instruct (skip if no key)
-//   4. Gemma 4 31B      — google/gemma-4-31b-it:free (explicit fallback)
+//   3. Groq             — meta-llama/llama-4-scout-17b-16e-instruct (skip if no key)
+//   4. HuggingFace BLIP — Salesforce/blip-image-captioning-large (skip if no key)
+//   5. Gemma 4 31B      — google/gemma-4-31b-it:free (explicit fallback)
 //
 // On rate-limit (429) we mark that provider exhausted and fall through.
 // When every key-holding provider is exhausted we throw
@@ -14,7 +15,8 @@
 
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
-const NVIDIA_KEY = import.meta.env.VITE_NVIDIA_API_KEY
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY
+const HF_KEY = import.meta.env.VITE_HF_API_KEY
 
 export class RateLimitExhaustedError extends Error {
   constructor(message = 'Semua model sudah mencapai limit hari ini.') {
@@ -24,8 +26,9 @@ export class RateLimitExhaustedError extends Error {
 }
 
 // ---------------- Model / provider chain ----------------
-// provider: 'gemini' | 'openrouter' | 'nvidia'
+// provider: 'gemini' | 'openrouter' | 'groq' | 'hf'
 // For gemini the actual model is resolved at call time (auto-detect).
+// All providers below are CORS-friendly from the browser.
 export const MODELS = [
   {
     id: 'gemini',
@@ -40,11 +43,18 @@ export const MODELS = [
     dailyLimit: 200,
   },
   {
-    id: 'nvidia',
-    label: 'NVIDIA NIM (Llama Vision)',
-    provider: 'nvidia',
-    model: 'meta/llama-3.2-11b-vision-instruct',
-    dailyLimit: 1000,
+    id: 'groq',
+    label: 'Groq (Llama 4 Scout)',
+    provider: 'groq',
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    dailyLimit: 100,
+  },
+  {
+    id: 'hf',
+    label: 'HF BLIP',
+    provider: 'hf',
+    model: 'Salesforce/blip-image-captioning-large',
+    dailyLimit: 300,
   },
   {
     id: 'google/gemma-4-31b-it:free',
@@ -56,7 +66,8 @@ export const MODELS = [
 
 function modelHasKey(model) {
   if (model.provider === 'gemini') return !!GEMINI_KEY
-  if (model.provider === 'nvidia') return !!NVIDIA_KEY
+  if (model.provider === 'groq') return !!GROQ_KEY
+  if (model.provider === 'hf') return !!HF_KEY
   return !!OPENROUTER_KEY
 }
 
@@ -88,7 +99,7 @@ export function allExhausted() {
 
 // ============================================================
 // Persisted daily usage tracking (localStorage)
-//   USAGE_KEY:   { "YYYY-MM-DD": { gemini, openrouter, nvidia, gemma } }
+//   USAGE_KEY:   { "YYYY-MM-DD": { gemini, openrouter, groq, hf, gemma } }
 //   EXHAUST_KEY: { "YYYY-MM-DD": { gemini: true, ... } }
 //   Writes keep only today's entry, so a new day auto-resets.
 // ============================================================
@@ -100,7 +111,8 @@ const EXHAUST_KEY = 'photo-catalog-model-exhausted'
 const USAGE_MODELS = [
   { id: 'gemini', name: 'Gemini 3 Flash', short: 'Gemini', quota: 500, hasKey: () => !!GEMINI_KEY },
   { id: 'openrouter', name: 'OpenRouter Free', short: 'OpenRouter', quota: 200, hasKey: () => !!OPENROUTER_KEY },
-  { id: 'nvidia', name: 'NVIDIA NIM', short: 'NVIDIA', quota: 1000, hasKey: () => !!NVIDIA_KEY },
+  { id: 'groq', name: 'Groq Llama 4 Scout', short: 'Groq', quota: 100, hasKey: () => !!GROQ_KEY },
+  { id: 'hf', name: 'HuggingFace BLIP', short: 'HF BLIP', quota: 300, hasKey: () => !!HF_KEY },
   { id: 'gemma', name: 'Gemma 4 31B', short: 'Gemma', quota: 200, hasKey: () => !!OPENROUTER_KEY },
 ]
 
@@ -112,8 +124,10 @@ function normUsageId(modelId) {
     case 'openrouter':
     case 'openrouter/free':
       return 'openrouter'
-    case 'nvidia':
-      return 'nvidia'
+    case 'groq':
+      return 'groq'
+    case 'hf':
+      return 'hf'
     case 'gemma':
     case 'google/gemma-4-31b-it:free':
       return 'gemma'
@@ -155,7 +169,8 @@ function dispatchUsageUpdate() {
 const STATUS_NAMES = {
   gemini: 'Gemini',
   openrouter: 'OpenRouter',
-  nvidia: 'NVIDIA',
+  groq: 'Groq',
+  hf: 'HF BLIP',
   gemma: 'Gemma',
 }
 
@@ -176,7 +191,13 @@ export function incrementUsage(modelId) {
   const id = normUsageId(modelId)
   if (!id) return
   const date = todayStr()
-  const day = readStore(USAGE_KEY)[date] || { gemini: 0, openrouter: 0, nvidia: 0, gemma: 0 }
+  const day = readStore(USAGE_KEY)[date] || {
+    gemini: 0,
+    openrouter: 0,
+    groq: 0,
+    hf: 0,
+    gemma: 0,
+  }
   day[id] = (day[id] || 0) + 1
   writeStore(USAGE_KEY, { [date]: day }) // drop other days → daily reset
   dispatchUsageUpdate()
@@ -671,22 +692,23 @@ async function tagWithOpenRouter(model, base64, mimeType, prompt = TAG_PROMPT) {
   return { text: data?.choices?.[0]?.message?.content || '', modelName: model.id }
 }
 
-async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
-  const key = import.meta.env.VITE_NVIDIA_API_KEY
-  console.log('[tagger] NVIDIA key present:', !!key, 'length:', key?.length)
-  if (!key) {
-    console.log('[tagger] NVIDIA skipped: no API key')
-    return null
+// Groq — OpenAI-compatible chat completions, CORS-friendly from the browser.
+async function tagWithGroq(model, base64, mimeType, prompt = TAG_PROMPT) {
+  if (!GROQ_KEY) {
+    const e = new Error('VITE_GROQ_API_KEY belum di-set')
+    e.skip = true
+    throw e
   }
-  const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${key}`,
+      Authorization: `Bearer ${GROQ_KEY}`,
     },
     body: JSON.stringify({
       model: model.model,
+      temperature: 0.2,
+      max_tokens: 1024,
       messages: [
         {
           role: 'user',
@@ -696,8 +718,6 @@ async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
           ],
         },
       ],
-      max_tokens: 1024,
-      temperature: 0.2,
     }),
   })
 
@@ -707,15 +727,57 @@ async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
     throw e
   }
   if (!res.ok) {
-    throw new Error(`NVIDIA ${res.status}: ${await res.text().catch(() => '')}`)
+    throw new Error(`Groq ${res.status}: ${await res.text().catch(() => '')}`)
   }
   const data = await res.json()
   if (data?.error) {
-    // Body-level error on an HTTP 200. NOT a 429, so treat it as an ordinary
-    // error and skip to the next model — do NOT mark the provider exhausted.
-    throw new Error(String(data.error.message || data.error || 'nvidia error'))
+    // Body-level error on an HTTP 200 → normal error, skip to next model.
+    throw new Error(String(data.error.message || data.error || 'groq error'))
   }
   return { text: data?.choices?.[0]?.message?.content || '', modelName: model.model }
+}
+
+// HuggingFace Inference API — BLIP image captioning. Returns a caption that
+// we turn into a description + simple tags. CORS-friendly from the browser.
+async function tagWithHuggingFace(model, base64, mimeType, _prompt = TAG_PROMPT) {
+  if (!HF_KEY) {
+    const e = new Error('VITE_HF_API_KEY belum di-set')
+    e.skip = true
+    throw e
+  }
+  const res = await fetch(`https://api-inference.huggingface.co/models/${model.model}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${HF_KEY}`,
+    },
+    // BLIP expects the raw base64 image string as `inputs`, not a chat body.
+    body: JSON.stringify({ inputs: base64 }),
+  })
+
+  if (res.status === 429) {
+    const e = new Error('rate limited')
+    e.rateLimited = true
+    throw e
+  }
+  if (!res.ok) {
+    throw new Error(`HuggingFace ${res.status}: ${await res.text().catch(() => '')}`)
+  }
+  const data = await res.json()
+  if (data?.error) {
+    // Body-level error (e.g. model loading) → normal error, skip to next model.
+    throw new Error(String(data.error || 'huggingface error'))
+  }
+  // Response shape: [{ generated_text: "a caption..." }]
+  const caption = Array.isArray(data) ? data[0]?.generated_text || '' : data?.generated_text || ''
+  // Turn the caption into a JSON-shaped string so the shared parser can mine
+  // tags from it (keyword fallback), while keeping the caption as description.
+  const tags = caption
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+  const text = JSON.stringify({ tags, description: caption, ocr_text: null })
+  return { text, modelName: model.model }
 }
 
 // ============================================================
@@ -729,7 +791,8 @@ async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
  */
 async function callProvider(model, base64, mimeType, prompt) {
   if (model.provider === 'gemini') return tagWithGemini(base64, mimeType, prompt)
-  if (model.provider === 'nvidia') return tagWithNvidia(model, base64, mimeType, prompt)
+  if (model.provider === 'groq') return tagWithGroq(model, base64, mimeType, prompt)
+  if (model.provider === 'hf') return tagWithHuggingFace(model, base64, mimeType, prompt)
   return tagWithOpenRouter(model, base64, mimeType, prompt)
 }
 
