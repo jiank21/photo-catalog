@@ -18,7 +18,9 @@ import {
   deletePhotos,
   hasSupabaseConfig,
 } from './lib/supabase'
+import { getUsageStats } from './lib/tagger'
 import Scanner from './components/Scanner'
+import QuotaBar from './components/QuotaBar'
 import SearchBar from './components/SearchBar'
 import PhotoGrid from './components/PhotoGrid'
 import PhotoModal from './components/PhotoModal'
@@ -266,6 +268,8 @@ export default function App() {
 
         <main className="app__main">
           <Scanner ref={scannerRef} sections={sections} onScanDone={handleScanDone} />
+
+          <QuotaBar getStats={getUsageStats} />
 
           <div className="search-row">
             <SearchBar

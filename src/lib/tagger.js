@@ -87,6 +87,123 @@ export function allExhausted() {
 }
 
 // ============================================================
+// Persisted daily usage tracking (localStorage)
+//   USAGE_KEY:   { "YYYY-MM-DD": { gemini, openrouter, nvidia, gemma } }
+//   EXHAUST_KEY: { "YYYY-MM-DD": { gemini: true, ... } }
+//   Writes keep only today's entry, so a new day auto-resets.
+// ============================================================
+
+const USAGE_KEY = 'photo-catalog-model-usage'
+const EXHAUST_KEY = 'photo-catalog-model-exhausted'
+
+// Simplified id → display + quota + availability.
+const USAGE_MODELS = [
+  { id: 'gemini', name: 'Gemini 3 Flash', short: 'Gemini', quota: 500, hasKey: () => !!GEMINI_KEY },
+  { id: 'openrouter', name: 'OpenRouter Free', short: 'OpenRouter', quota: 200, hasKey: () => !!OPENROUTER_KEY },
+  { id: 'nvidia', name: 'NVIDIA NIM', short: 'NVIDIA', quota: 1000, hasKey: () => !!NVIDIA_KEY },
+  { id: 'gemma', name: 'Gemma 4 31B', short: 'Gemma', quota: 200, hasKey: () => !!OPENROUTER_KEY },
+]
+
+// Map a chain model.id (or already-simplified id) to a simplified usage id.
+function normUsageId(modelId) {
+  switch (modelId) {
+    case 'gemini':
+      return 'gemini'
+    case 'openrouter':
+    case 'openrouter/free':
+      return 'openrouter'
+    case 'nvidia':
+      return 'nvidia'
+    case 'gemma':
+    case 'google/gemma-4-31b-it:free':
+      return 'gemma'
+    default:
+      return null
+  }
+}
+
+function todayStr() {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+function readStore(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function writeStore(key, obj) {
+  try {
+    localStorage.setItem(key, JSON.stringify(obj))
+  } catch {
+    /* ignore (private mode / quota) */
+  }
+}
+
+function dispatchUsageUpdate() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tagger:usage-update'))
+  }
+}
+
+/** Increment today's successful-tag counter for a model. */
+export function incrementUsage(modelId) {
+  const id = normUsageId(modelId)
+  if (!id) return
+  const date = todayStr()
+  const day = readStore(USAGE_KEY)[date] || { gemini: 0, openrouter: 0, nvidia: 0, gemma: 0 }
+  day[id] = (day[id] || 0) + 1
+  writeStore(USAGE_KEY, { [date]: day }) // drop other days → daily reset
+  dispatchUsageUpdate()
+}
+
+/** Mark a model as rate-limited (exhausted) for today. */
+export function markExhausted(modelId) {
+  const id = normUsageId(modelId)
+  if (!id) return
+  const date = todayStr()
+  const day = readStore(EXHAUST_KEY)[date] || {}
+  day[id] = true
+  writeStore(EXHAUST_KEY, { [date]: day })
+  dispatchUsageUpdate()
+}
+
+/** Snapshot of today's quota usage for the UI. */
+export function getUsageStats() {
+  const date = todayStr()
+  const used = readStore(USAGE_KEY)[date] || {}
+  const exh = readStore(EXHAUST_KEY)[date] || {}
+  let totalRemaining = 0
+  let totalUsedToday = 0
+
+  const models = USAGE_MODELS.map((m) => {
+    const u = used[m.id] || 0
+    const exhausted = !!exh[m.id]
+    const available = m.hasKey()
+    const remaining = exhausted ? 0 : Math.max(0, m.quota - u)
+    totalUsedToday += u
+    if (available) totalRemaining += remaining
+    return {
+      name: m.name,
+      short: m.short,
+      id: m.id,
+      quota: m.quota,
+      used: u,
+      remaining,
+      exhausted,
+      available,
+    }
+  })
+
+  return { date, models, totalRemaining, totalUsedToday }
+}
+
+// ============================================================
 // Gemini model auto-detection
 // ============================================================
 
@@ -214,6 +331,17 @@ const STOPWORDS = new Set([
   'gambar', 'foto', 'adalah', 'pada', 'untuk', 'ada', 'terdapat',
 ])
 
+// Content-safety labels some models emit — never valid photo descriptions.
+const SAFETY_BLACKLIST = [
+  'safe', 'safety', 'user', 'content', 'policy', 'inappropriate',
+  'explicit', 'nsfw', 'violence', 'harmful', 'restricted', 'blocked',
+  'moderated', 'flagged', 'warning', 'adult', 'sensitive',
+]
+
+function isSafetyTag(tag) {
+  return SAFETY_BLACKLIST.some((w) => tag.includes(w))
+}
+
 function normalizeTags(arr, max = 20) {
   if (!Array.isArray(arr)) return []
   const seen = new Set()
@@ -222,6 +350,7 @@ function normalizeTags(arr, max = 20) {
     const clean = String(t).toLowerCase().trim().replace(/^["'#\s]+|["'.,;\s]+$/g, '')
     if (!clean || clean === 'null' || seen.has(clean)) continue
     if (STOPWORDS.has(clean)) continue
+    if (isSafetyTag(clean)) continue // drop content-safety labels
     seen.add(clean)
     out.push(clean)
     if (out.length >= max) break
@@ -598,6 +727,7 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
       }
 
       usage[model.id].used += 1
+      incrementUsage(model.id) // persisted daily counter
       return { ...parsed, model: modelName || model.id, modelLabel: model.label }
     } catch (err) {
       if (err.skip) {
@@ -606,6 +736,7 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
       }
       if (err.rateLimited) {
         usage[model.id].exhausted = true
+        markExhausted(model.id) // persisted exhausted flag for today
         console.warn(`[tagger] ${model.label} rate limited, falling through`)
         continue
       }
