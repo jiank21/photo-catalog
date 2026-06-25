@@ -6,6 +6,7 @@
   --accent: #6c8ef5;
   --accent-dim: rgba(108, 142, 245, 0.15);
   --text: #e6e9ef;
+  --text2: #b8c0d0;
   --muted: #8a93a6;
   --tagged: #3ecf8e;
   --pending: #f5a623;
@@ -1451,15 +1452,22 @@ code {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--muted);
-  background: none;
-  border: none;
+  color: var(--text2);
   cursor: pointer;
-  padding: 0 4px;
+  user-select: none;
   flex-shrink: 0;
+  /* separator between the master checkbox and the count */
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
 }
 .master-check:hover {
   color: var(--text);
+}
+.master-check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* ---------------- Help modal ---------------- */

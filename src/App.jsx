@@ -9,8 +9,6 @@ import {
   RefreshCw,
   Trash2,
   X,
-  Check,
-  Minus,
   HelpCircle,
 } from 'lucide-react'
 import {
@@ -58,6 +56,21 @@ function ViewToggle({ view, onChange }) {
         </button>
       ))}
     </div>
+  )
+}
+
+// Master "select all" checkbox — native checkbox so we can show the
+// indeterminate (partial) state, which is only settable via JS.
+function SelectAllCheckbox({ checked, indeterminate, onChange }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return (
+    <label className="master-check" title="Pilih / batalkan semua yang tampil">
+      <input type="checkbox" ref={ref} checked={checked} onChange={onChange} />
+      Semua
+    </label>
   )
 }
 
@@ -304,31 +317,6 @@ export default function App({ onLogout }) {
               onFolderChange={setFolder}
               folders={folders}
             />
-            {selectMode && (
-              <button
-                type="button"
-                className="master-check"
-                onClick={toggleSelectAll}
-                title="Pilih / batalkan semua yang tampil"
-              >
-                <span
-                  className={`select-box${
-                    photos.length > 0 && photos.every((p) => selectedIds.has(p.id))
-                      ? ' is-checked'
-                      : selectedIds.size > 0
-                        ? ' is-indeterminate'
-                        : ''
-                  }`}
-                >
-                  {photos.length > 0 && photos.every((p) => selectedIds.has(p.id)) ? (
-                    <Check size={13} strokeWidth={3} />
-                  ) : selectedIds.size > 0 ? (
-                    <Minus size={13} strokeWidth={3} />
-                  ) : null}
-                </span>
-                Semua
-              </button>
-            )}
             <button
               type="button"
               className={`btn${selectMode ? ' btn--primary' : ''}`}
@@ -351,6 +339,13 @@ export default function App({ onLogout }) {
 
           {selectMode && (
             <div className="select-toolbar">
+              <SelectAllCheckbox
+                checked={photos.length > 0 && photos.every((p) => selectedIds.has(p.id))}
+                indeterminate={
+                  selectedIds.size > 0 && !photos.every((p) => selectedIds.has(p.id))
+                }
+                onChange={toggleSelectAll}
+              />
               <span className="select-toolbar__count">{selectedIds.size} foto dipilih</span>
               <button
                 type="button"
