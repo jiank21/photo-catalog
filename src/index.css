@@ -675,6 +675,18 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.maps-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+}
+.maps-link:hover {
+  text-decoration: underline;
+}
 
 .tag-list {
   display: flex;

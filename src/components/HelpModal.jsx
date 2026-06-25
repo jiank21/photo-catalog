@@ -16,6 +16,7 @@ import {
   Tag,
   ShieldCheck,
   Cloud,
+  Aperture,
 } from 'lucide-react'
 
 const STEPS = [
@@ -66,6 +67,11 @@ const FEATURES = [
     icon: <Bot size={18} />,
     title: 'AI Auto-Tag',
     body: 'Model AI dengan fallback otomatis: Gemini → OpenRouter → Groq → HuggingFace → Gemma. Jika satu model kena limit, otomatis pindah ke model berikutnya.',
+  },
+  {
+    icon: <Aperture size={18} />,
+    title: 'EXIF & Metadata',
+    body: 'Data teknis foto diekstrak otomatis: kamera, lensa, aperture, ISO, focal length. Foto dengan GPS otomatis mendapat tag lokasi (kota & negara). Semua data EXIF juga masuk sebagai tags yang bisa dicari.',
   },
   {
     icon: <Gauge size={18} />,

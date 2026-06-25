@@ -7,7 +7,6 @@ import {
   forwardRef,
 } from 'react'
 import { FolderSearch, Pause, Play, Square, AlertTriangle, RefreshCw } from 'lucide-react'
-import exifr from 'exifr'
 import {
   createScanSession,
   updateScanSession,
@@ -18,6 +17,36 @@ import {
   updatePhotoStatus,
 } from '../lib/supabase'
 import { tagImage, RateLimitExhaustedError, resetUsage } from '../lib/tagger'
+import { extractExif, reverseGeocode, exifToTags } from '../lib/exif'
+
+// Extract EXIF + reverse-geocode GPS into one bundle.
+async function gatherExif(file) {
+  const exifData = await extractExif(file)
+  let gpsLocation = null
+  if (exifData?.gpsLat && exifData?.gpsLng) {
+    gpsLocation = await reverseGeocode(exifData.gpsLat, exifData.gpsLng)
+  }
+  const exifTags = exifData ? exifToTags(exifData, gpsLocation) : []
+  return { exifData, gpsLocation, exifTags }
+}
+
+// Map EXIF bundle → photos table columns.
+function exifColumns(exifData, gpsLocation) {
+  return {
+    camera_make: exifData?.cameraMake || null,
+    camera_model: exifData?.cameraModel || null,
+    lens_model: exifData?.lensModel || null,
+    aperture: exifData?.aperture || null,
+    shutter_speed: exifData?.shutterSpeed || null,
+    iso: exifData?.iso || null,
+    focal_length: exifData?.focalLength || null,
+    flash: exifData?.flash || null,
+    exposure_mode: exifData?.exposureMode || null,
+    gps_lat: exifData?.gpsLat || null,
+    gps_lng: exifData?.gpsLng || null,
+    gps_location: gpsLocation || null,
+  }
+}
 
 // Highlight known model names inside a status line.
 const MODEL_WORDS = ['Gemini', 'OpenRouter', 'NVIDIA', 'Gemma']
@@ -223,23 +252,20 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
         // RAW (and HEIC) → metadata only, skip thumbnail + AI.
         if (isRaw || !canDecode) {
-          let takenAt = null
-          try {
-            const exif = await exifr.parse(file).catch(() => null)
-            takenAt = exif?.DateTimeOriginal || exif?.CreateDate || null
-          } catch {
-            /* ignore */
-          }
+          setStatusText('🔍 Membaca metadata EXIF...')
+          const { exifData, gpsLocation, exifTags } = await gatherExif(file)
           try {
             await upsertPhoto(
               {
                 ...baseRow,
-                taken_at: takenAt ? new Date(takenAt).toISOString() : null,
+                ...exifColumns(exifData, gpsLocation),
+                taken_at: exifData?.takenAt ? new Date(exifData.takenAt).toISOString() : null,
                 tag_status: 'skipped',
                 tag_model: null,
                 thumbnail_base64: null,
               },
               [],
+              exifTags,
             )
           } catch (e) {
             console.warn('upsert skipped photo failed:', e.message)
@@ -251,15 +277,9 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
         // Decodable raster: thumbnail + EXIF + AI tag.
         let thumb = null
-        let exifDate = null
         setStatusText('🖼️ Membuat thumbnail')
         try {
-          const [t, exif] = await Promise.all([
-            makeThumbnail(file),
-            exifr.parse(file).catch(() => null),
-          ])
-          thumb = t
-          exifDate = exif?.DateTimeOriginal || exif?.CreateDate || null
+          thumb = await makeThumbnail(file)
         } catch (e) {
           console.warn('thumbnail failed for', handle.name, e.message)
           try {
@@ -271,6 +291,18 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
           setProgress((p) => ({ ...p, done: p.done + 1, failed: counters.failed }))
           continue
         }
+
+        // EXIF metadata + GPS reverse-geocode (before AI tagging).
+        setStatusText('🔍 Membaca metadata EXIF...')
+        const exifData = await extractExif(file)
+        let gpsLocation = null
+        if (exifData?.gpsLat && exifData?.gpsLng) {
+          setStatusText('📍 Mendapatkan lokasi foto...')
+          gpsLocation = await reverseGeocode(exifData.gpsLat, exifData.gpsLng)
+        }
+        const exifTags = exifData ? exifToTags(exifData, gpsLocation) : []
+        const takenAtIso = exifData?.takenAt ? new Date(exifData.takenAt).toISOString() : null
+        const exifCols = exifColumns(exifData, gpsLocation)
 
         const base64 = thumb.dataUrl.split(',')[1]
         let tagResult = null
@@ -285,14 +317,16 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
               await upsertPhoto(
                 {
                   ...baseRow,
+                  ...exifCols,
                   width: thumb.width,
                   height: thumb.height,
-                  taken_at: exifDate ? new Date(exifDate).toISOString() : null,
+                  taken_at: takenAtIso,
                   tag_status: 'pending',
                   tag_model: null,
                   thumbnail_base64: thumb.dataUrl,
                 },
                 [],
+                exifTags,
               )
             } catch {
               /* ignore */
@@ -319,14 +353,16 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
           await upsertPhoto(
             {
               ...baseRow,
+              ...exifCols,
               width: thumb.width,
               height: thumb.height,
-              taken_at: exifDate ? new Date(exifDate).toISOString() : null,
+              taken_at: takenAtIso,
               tag_status: status,
               tag_model: tagResult?.model || null,
               thumbnail_base64: thumb.dataUrl,
             },
             tagResult?.tags || [],
+            exifTags,
           )
         } catch (e) {
           console.warn('upsert failed:', e.message)

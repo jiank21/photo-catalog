@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Copy, Check, Plus, FolderInput, RefreshCw } from 'lucide-react'
+import { X, Copy, Check, Plus, FolderInput, RefreshCw, Camera, MapPin } from 'lucide-react'
 import { supabase, addManualTag, removeTag } from '../lib/supabase'
 import TagBadge from './TagBadge'
 
@@ -77,6 +77,21 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
   }, [onClose])
 
   if (!photo) return null
+
+  const cameraStr = [photo.camera_make, photo.camera_model].filter(Boolean).join(' ').trim()
+  const hasExif = !!(
+    photo.camera_make ||
+    photo.camera_model ||
+    photo.lens_model ||
+    photo.aperture ||
+    photo.shutter_speed ||
+    photo.iso ||
+    photo.focal_length ||
+    photo.flash ||
+    photo.exposure_mode ||
+    photo.gps_location ||
+    photo.gps_lat
+  )
 
   const copyPath = async () => {
     try {
@@ -193,6 +208,63 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
                 </span>
               </div>
             </div>
+
+            {/* Camera & technical info (only when some EXIF is present) */}
+            {hasExif && (
+              <div className="field">
+                <label className="settings__section">
+                  <Camera size={14} /> Info Kamera &amp; Teknis
+                </label>
+                <div className="meta-grid">
+                  <div>
+                    <span className="meta-grid__k">Kamera</span>
+                    <span className="meta-grid__v" title={cameraStr}>{cameraStr || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">Lensa</span>
+                    <span className="meta-grid__v" title={photo.lens_model}>
+                      {photo.lens_model || '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">Aperture</span>
+                    <span className="meta-grid__v">{photo.aperture || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">Shutter</span>
+                    <span className="meta-grid__v">{photo.shutter_speed || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">ISO</span>
+                    <span className="meta-grid__v">{photo.iso || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">Focal Length</span>
+                    <span className="meta-grid__v">{photo.focal_length || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">Flash</span>
+                    <span className="meta-grid__v">{photo.flash || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="meta-grid__k">Lokasi GPS</span>
+                    <span className="meta-grid__v" title={photo.gps_location}>
+                      {photo.gps_location || '—'}
+                      {photo.gps_lat && photo.gps_lng && (
+                        <a
+                          className="maps-link"
+                          href={`https://maps.google.com/?q=${photo.gps_lat},${photo.gps_lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <MapPin size={11} /> Buka Maps
+                        </a>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tags */}
             <div className="field">

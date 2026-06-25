@@ -19,11 +19,29 @@ export const hasSupabaseConfig = Boolean(url && anonKey)
 
 // ---------------- Photo persistence helpers ----------------
 
+/** Replace all tags of one source for a photo with a fresh, deduped set. */
+async function replaceTagsBySource(photoId, tags, source, skip = new Set()) {
+  await supabase.from('tags').delete().eq('photo_id', photoId).eq('source', source)
+  const seen = new Set()
+  const rows = []
+  for (const t of tags) {
+    const clean = String(t).toLowerCase().trim()
+    if (!clean || seen.has(clean) || skip.has(clean)) continue
+    seen.add(clean)
+    rows.push({ photo_id: photoId, tag: clean, source })
+  }
+  if (rows.length) {
+    const { error } = await supabase.from('tags').upsert(rows, { onConflict: 'photo_id,tag' })
+    if (error) console.warn(`[supabase] gagal simpan tags (${source}):`, error.message)
+  }
+  return seen
+}
+
 /**
- * Upsert a photo by its absolute filepath, then replace its AI tags.
- * Returns the stored photo row (with id).
+ * Upsert a photo by its absolute filepath, then replace its AI + EXIF tags.
+ * Manual tags are kept. Returns the stored photo row (with id).
  */
-export async function upsertPhoto(photo, tags = []) {
+export async function upsertPhoto(photo, aiTags = [], exifTags = []) {
   const { data, error } = await supabase
     .from('photos')
     .upsert(photo, { onConflict: 'filepath' })
@@ -34,29 +52,10 @@ export async function upsertPhoto(photo, tags = []) {
 
   const photoId = data.id
 
-  if (tags.length) {
-    // Replace AI-sourced tags for this photo (manual tags are kept).
-    await supabase.from('tags').delete().eq('photo_id', photoId).eq('source', 'ai')
-
-    const rows = tags.map((t) => ({
-      photo_id: photoId,
-      tag: String(t).toLowerCase().trim(),
-      source: 'ai',
-    }))
-    // Dedupe in case the model repeats a tag.
-    const seen = new Set()
-    const unique = rows.filter((r) => {
-      if (!r.tag || seen.has(r.tag)) return false
-      seen.add(r.tag)
-      return true
-    })
-    if (unique.length) {
-      const { error: tagErr } = await supabase
-        .from('tags')
-        .upsert(unique, { onConflict: 'photo_id,tag' })
-      if (tagErr) console.warn('[supabase] gagal simpan tags:', tagErr.message)
-    }
-  }
+  // AI tags first; EXIF tags skip any duplicates already stored as AI so we
+  // don't fight the (photo_id, tag) unique constraint.
+  const aiSeen = await replaceTagsBySource(photoId, aiTags, 'ai')
+  await replaceTagsBySource(photoId, exifTags, 'exif', aiSeen)
 
   return data
 }
