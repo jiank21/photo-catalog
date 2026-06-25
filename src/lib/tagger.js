@@ -28,38 +28,8 @@ export const MODELS = [
     dailyLimit: 1500,
   },
   {
-    id: 'google/gemma-4-31b-it:free',
-    label: 'Gemma 4 31B',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-  {
-    id: 'meta-llama/llama-4-scout:free',
-    label: 'Llama 4 Scout',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-  {
-    id: 'google/gemma-3-27b-it:free',
-    label: 'Gemma 3 27B',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-  {
-    id: 'mistralai/mistral-small-3.1-24b-instruct:free',
-    label: 'Mistral Small 3.1 24B',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-  {
-    id: 'google/gemma-3-12b-it:free',
-    label: 'Gemma 3 12B',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-  {
-    id: 'deepseek/deepseek-chat-v3.1:free',
-    label: 'DeepSeek Chat v3.1',
+    id: 'openrouter/free',
+    label: 'OpenRouter Auto Free',
     provider: 'openrouter',
     dailyLimit: 200,
   },
@@ -133,10 +103,13 @@ async function callGemini(model, base64, mimeType) {
     e.skip = true
     throw e
   }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent?key=${GEMINI_KEY}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model.id}:generateContent`
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': GEMINI_KEY,
+    },
     body: JSON.stringify({
       contents: [
         {
