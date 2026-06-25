@@ -9,6 +9,9 @@ import {
   RefreshCw,
   Trash2,
   X,
+  Check,
+  Minus,
+  HelpCircle,
 } from 'lucide-react'
 import {
   searchPhotos,
@@ -27,6 +30,7 @@ import PhotoModal from './components/PhotoModal'
 import StatsBar from './components/StatsBar'
 import SectionManager from './components/SectionManager'
 import SettingsModal from './components/SettingsModal'
+import HelpModal from './components/HelpModal'
 
 const PAGE_SIZE = 60
 const VIEW_KEY = 'photo-catalog-view'
@@ -60,6 +64,7 @@ function ViewToggle({ view, onChange }) {
 export default function App({ onLogout }) {
   const [query, setQuery] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [status, setStatus] = useState('all')
   const [folder, setFolder] = useState('all')
   const [activeSection, setActiveSection] = useState('all')
@@ -252,6 +257,15 @@ export default function App({ onLogout }) {
           <h1>Photo Catalog</h1>
         </div>
         <StatsBar stats={stats} />
+        <button
+          type="button"
+          className="help-btn"
+          onClick={() => setShowHelp(true)}
+          title="Panduan & FAQ"
+          aria-label="Bantuan"
+        >
+          <HelpCircle size={20} />
+        </button>
       </header>
 
       {!hasSupabaseConfig && (
@@ -290,6 +304,31 @@ export default function App({ onLogout }) {
               onFolderChange={setFolder}
               folders={folders}
             />
+            {selectMode && (
+              <button
+                type="button"
+                className="master-check"
+                onClick={toggleSelectAll}
+                title="Pilih / batalkan semua yang tampil"
+              >
+                <span
+                  className={`select-box${
+                    photos.length > 0 && photos.every((p) => selectedIds.has(p.id))
+                      ? ' is-checked'
+                      : selectedIds.size > 0
+                        ? ' is-indeterminate'
+                        : ''
+                  }`}
+                >
+                  {photos.length > 0 && photos.every((p) => selectedIds.has(p.id)) ? (
+                    <Check size={13} strokeWidth={3} />
+                  ) : selectedIds.size > 0 ? (
+                    <Minus size={13} strokeWidth={3} />
+                  ) : null}
+                </span>
+                Semua
+              </button>
+            )}
             <button
               type="button"
               className={`btn${selectMode ? ' btn--primary' : ''}`}
@@ -365,6 +404,8 @@ export default function App({ onLogout }) {
       {showSettings && (
         <SettingsModal onClose={() => setShowSettings(false)} onLogout={onLogout} />
       )}
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>
   )
 }
