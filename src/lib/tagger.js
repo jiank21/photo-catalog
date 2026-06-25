@@ -316,25 +316,36 @@ function geminiCandidateModels() {
 // ============================================================
 // Prompt
 // ============================================================
-const TAG_PROMPT = `You are an expert photo cataloger with deep knowledge of animals, plants, products, architecture, people, and scenes. Analyze this photo carefully and return ONLY a valid JSON object with no markdown, no explanation, nothing else.
+const TAG_PROMPT = `You are an expert photo cataloger fluent in English and Bahasa Indonesia. Analyze this photo carefully and return ONLY a valid JSON object with no markdown, no explanation, nothing else.
 
 Required format:
-{"tags":["tag1","tag2"],"description":"One sentence.","ocr_text":"visible text or null"}
+{"tags":["tag1","tag2"],"description":"One sentence in English.","ocr_text":"visible text or null"}
 
-Tagging rules:
-- MANDATORY: Generate MINIMUM 10 tags, maximum 20 tags, all lowercase, no duplicates. You MUST find at least 10 distinct descriptive tags. If the image seems simple, look harder: analyze background, foreground, lighting quality (harsh/soft/natural/artificial), color palette (list dominant colors), texture (smooth/rough/glossy/matte), composition (close-up/wide/portrait/landscape/overhead), focus quality (sharp/bokeh/blurry), time of day, indoor/outdoor, shadows, negative space, any patterns or shapes, image quality (clear/grainy/overexposed/underexposed). There is ALWAYS at least 10 things to say about any photo. No exceptions.
-- FIRST tag must be the most specific primary subject (e.g. "jumping spider" not "spider" not "insect", "asus rog motherboard" not "motherboard", "golden retriever puppy" not "dog", "bride and groom" not "people")
-- Then add: secondary subjects, specific object names, material/texture, dominant colors (specific: "forest green" not "green"), setting/environment, lighting quality, mood/atmosphere, composition style
-- Animals: species name, color pattern, behavior, body part visible if closeup
-- Products/tech: exact product type, brand if visible, color, condition (new/used/damaged)
-- People: count ("two women"), apparent age range, emotion, activity, clothing color
-- Landscapes: specific biome/location type, weather, season, time of day
-- Architecture: building type, style, era if identifiable, material
-- Food: dish name, main ingredients visible, presentation style
-- NEVER use these generic tags: image, photo, picture, photograph, object, thing, item
-- OCR: extract ALL visible text including labels, signs, watermarks, serial numbers
+MANDATORY TAGGING RULES:
+- Generate MINIMUM 20 tags (10 English + 10 Bahasa Indonesia equivalents)
+- Maximum 30 tags total
+- For EVERY concept you identify, include BOTH the English AND Indonesian word as separate tags
+  Examples: "spider" AND "laba-laba", "sunset" AND "matahari terbenam", "portrait" AND "potret", "wedding" AND "pernikahan", "motherboard" AND "papan sirkuit", "forest" AND "hutan", "woman" AND "perempuan", "building" AND "gedung"
+- FIRST two tags must be the most specific primary subject in English then Indonesian
+  (e.g. "jumping spider", "laba-laba pelompat" — NOT just "spider" or "insect")
+- Then add paired EN+ID tags for: secondary subjects, specific object names, colors, setting/environment, lighting, mood, composition, materials/textures
+- For animals: species name (EN+ID), color pattern, behavior
+- For products/tech: exact product type (EN+ID), brand if visible, condition
+- For people: count, apparent activity (EN+ID), clothing colors
+- For landscapes: specific location type (EN+ID), weather, season, time of day
+- For architecture: building type (EN+ID), style, material
+- Colors in BOTH languages: "red" AND "merah", "dark blue" AND "biru tua"
+- NEVER use generic tags: image, photo, picture, photograph, object, thing, gambar, foto, objek
+- If image seems simple, analyze deeper: background, lighting quality, texture, composition style, focus quality, shadows, patterns — all in EN+ID pairs
 
-Return ONLY the JSON object. No markdown fences. No explanation.`
+CONTENT SAFETY FILTER:
+- Do NOT include these as tags: safe, safety, user, content, policy, inappropriate, explicit, nsfw, violence, harmful, restricted, blocked, moderated, flagged, warning, adult, sensitive
+
+OCR: Extract ALL visible text including labels, signs, watermarks — include in ocr_text field.
+
+RETRY RULE: If you cannot find 20 tags, look harder. There are always at least 10 distinct concepts in any photo. Every concept = 2 tags (EN + ID).
+
+Return ONLY the JSON object. No markdown fences. No explanation. No text before or after the JSON.`
 
 // ============================================================
 // Response parsing
@@ -362,7 +373,7 @@ function isSafetyTag(tag) {
   return SAFETY_BLACKLIST.some((w) => tag.includes(w))
 }
 
-function normalizeTags(arr, max = 20) {
+function normalizeTags(arr, max = 30) {
   if (!Array.isArray(arr)) return []
   const seen = new Set()
   const out = []
@@ -758,8 +769,8 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
 
         // Minimum-tag enforcement: one retry on the SAME model when < 8 tags.
         let finalTags = parsed.tags
-        if (finalTags.length < 8) {
-          const retryPrompt = `The previous analysis only returned ${finalTags.length} tags which is insufficient. Look at this image again more carefully. You MUST return at least 10 tags. Add more specific observations about: colors, textures, lighting, composition, background elements, foreground details, image style, technical qualities of the photo. Previous tags were: ${finalTags.join(', ')}. Now return a complete JSON with at least 10 tags total.`
+        if (finalTags.length < 16) {
+          const retryPrompt = `The previous analysis only returned ${finalTags.length} tags which is insufficient. You MUST return minimum 20 tags (10 English + 10 Indonesian equivalents). Look at this image again more carefully and pair EVERY concept with both its English AND Bahasa Indonesia word as separate tags (e.g. "spider" AND "laba-laba", "red" AND "merah"). Add more specific observations about: colors, textures, lighting, composition, background elements, foreground details, image style, technical qualities of the photo — each in EN+ID pairs. Previous tags were: ${finalTags.join(', ')}. Now return a complete JSON with at least 20 tags total.`
           try {
             dispatchTagStatus(`🤖 Menambah detail dengan ${name}`)
             const out2 = await callProvider(model, base64, mimeType, retryPrompt)
