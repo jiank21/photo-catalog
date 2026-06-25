@@ -12,6 +12,7 @@ function barColor(remaining, quota, exhausted) {
 
 export default function QuotaBar({ getStats }) {
   const [stats, setStats] = useState(() => (getStats ? getStats() : null))
+  const [activeModel, setActiveModel] = useState(null)
 
   const refresh = useCallback(() => {
     if (getStats) setStats(getStats())
@@ -20,10 +21,13 @@ export default function QuotaBar({ getStats }) {
   useEffect(() => {
     refresh()
     const onUpdate = () => refresh()
+    const onActive = (e) => setActiveModel(e.detail?.modelId ?? null)
     window.addEventListener('tagger:usage-update', onUpdate)
+    window.addEventListener('tagger:model-active', onActive)
     const iv = setInterval(refresh, 30000) // auto-refresh every 30s
     return () => {
       window.removeEventListener('tagger:usage-update', onUpdate)
+      window.removeEventListener('tagger:model-active', onActive)
       clearInterval(iv)
     }
   }, [refresh])
@@ -36,12 +40,16 @@ export default function QuotaBar({ getStats }) {
         {stats.models.map((m) => {
           const usedPct = m.quota ? Math.min(100, Math.round((m.used / m.quota) * 100)) : 0
           const color = barColor(m.remaining, m.quota, m.exhausted)
+          const isActive = activeModel === m.id
           return (
             <div
               key={m.id}
-              className={`quota-model${m.available ? '' : ' quota-model--off'}`}
+              className={`quota-model${m.available ? '' : ' quota-model--off'}${
+                isActive ? ' quota-model--active' : ''
+              }`}
               title={m.available ? `${m.name}: ${m.used}/${m.quota} terpakai` : `${m.name}: tidak ada API key`}
             >
+              {isActive && <span className="quota-model__pulse" aria-hidden="true" />}
               <div className="quota-model__top">
                 <span className="quota-model__name">
                   {!m.available && <KeyRound size={11} />}
@@ -61,6 +69,7 @@ export default function QuotaBar({ getStats }) {
                   style={{ width: m.available ? `${usedPct}%` : '0%', background: color }}
                 />
               </div>
+              {isActive && <span className="quota-model__active-label">active</span>}
             </div>
           )
         })}

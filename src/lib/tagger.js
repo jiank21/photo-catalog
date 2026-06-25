@@ -151,6 +151,26 @@ function dispatchUsageUpdate() {
   }
 }
 
+// Friendly names for status lines / active-model events.
+const STATUS_NAMES = {
+  gemini: 'Gemini',
+  openrouter: 'OpenRouter',
+  nvidia: 'NVIDIA',
+  gemma: 'Gemma',
+}
+
+function dispatchModelActive(modelId) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tagger:model-active', { detail: { modelId } }))
+  }
+}
+
+function dispatchTagStatus(text) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tagger:status', { detail: { text } }))
+  }
+}
+
 /** Increment today's successful-tag counter for a model. */
 export function incrementUsage(modelId) {
   const id = normUsageId(modelId)
@@ -302,7 +322,7 @@ Required format:
 {"tags":["tag1","tag2"],"description":"One sentence.","ocr_text":"visible text or null"}
 
 Tagging rules:
-- Generate 8-20 tags, all lowercase, no duplicates
+- MANDATORY: Generate MINIMUM 10 tags, maximum 20 tags, all lowercase, no duplicates. You MUST find at least 10 distinct descriptive tags. If the image seems simple, look harder: analyze background, foreground, lighting quality (harsh/soft/natural/artificial), color palette (list dominant colors), texture (smooth/rough/glossy/matte), composition (close-up/wide/portrait/landscape/overhead), focus quality (sharp/bokeh/blurry), time of day, indoor/outdoor, shadows, negative space, any patterns or shapes, image quality (clear/grainy/overexposed/underexposed). There is ALWAYS at least 10 things to say about any photo. No exceptions.
 - FIRST tag must be the most specific primary subject (e.g. "jumping spider" not "spider" not "insect", "asus rog motherboard" not "motherboard", "golden retriever puppy" not "dog", "bride and groom" not "people")
 - Then add: secondary subjects, specific object names, material/texture, dominant colors (specific: "forest green" not "green"), setting/environment, lighting quality, mood/atmosphere, composition style
 - Animals: species name, color pattern, behavior, body part visible if closeup
@@ -527,7 +547,7 @@ function parseModelJson(text, modelName = 'model') {
 // Provider callers — each returns { text, modelName }
 // ============================================================
 
-async function tagWithGemini(base64, mimeType) {
+async function tagWithGemini(base64, mimeType, prompt = TAG_PROMPT) {
   if (!GEMINI_KEY) {
     const e = new Error('VITE_GEMINI_API_KEY belum di-set')
     e.skip = true
@@ -551,7 +571,7 @@ async function tagWithGemini(base64, mimeType) {
           contents: [
             {
               parts: [
-                { text: TAG_PROMPT },
+                { text: prompt },
                 { inline_data: { mime_type: mimeType, data: base64 } },
               ],
             },
@@ -593,7 +613,7 @@ async function tagWithGemini(base64, mimeType) {
   throw lastErr || new Error('Semua model Gemini gagal (404/error)')
 }
 
-async function tagWithOpenRouter(model, base64, mimeType) {
+async function tagWithOpenRouter(model, base64, mimeType, prompt = TAG_PROMPT) {
   if (!OPENROUTER_KEY) {
     const e = new Error('VITE_OPENROUTER_API_KEY belum di-set')
     e.skip = true
@@ -615,7 +635,7 @@ async function tagWithOpenRouter(model, base64, mimeType) {
         {
           role: 'user',
           content: [
-            { type: 'text', text: TAG_PROMPT },
+            { type: 'text', text: prompt },
             { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
           ],
         },
@@ -644,7 +664,7 @@ async function tagWithOpenRouter(model, base64, mimeType) {
   return { text: data?.choices?.[0]?.message?.content || '', modelName: model.id }
 }
 
-async function tagWithNvidia(model, base64, mimeType) {
+async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
   if (!NVIDIA_KEY) {
     const e = new Error('VITE_NVIDIA_API_KEY belum di-set')
     e.skip = true
@@ -663,7 +683,7 @@ async function tagWithNvidia(model, base64, mimeType) {
         {
           role: 'user',
           content: [
-            { type: 'text', text: TAG_PROMPT },
+            { type: 'text', text: prompt },
             { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
           ],
         },
@@ -703,50 +723,78 @@ async function tagWithNvidia(model, base64, mimeType) {
  * Returns { tags, description, ocr_text, model, modelLabel } on success.
  * Throws RateLimitExhaustedError when every key-holding provider is limited.
  */
+async function callProvider(model, base64, mimeType, prompt) {
+  if (model.provider === 'gemini') return tagWithGemini(base64, mimeType, prompt)
+  if (model.provider === 'nvidia') return tagWithNvidia(model, base64, mimeType, prompt)
+  return tagWithOpenRouter(model, base64, mimeType, prompt)
+}
+
 export async function tagImage(base64, mimeType = 'image/jpeg') {
-  for (const model of MODELS) {
-    if (usage[model.id].exhausted) continue
+  let tried = 0
+  try {
+    for (const model of MODELS) {
+      if (usage[model.id].exhausted) continue
+      if (!modelHasKey(model)) continue
 
-    try {
-      let out
-      if (model.provider === 'gemini') out = await tagWithGemini(base64, mimeType)
-      else if (model.provider === 'nvidia') out = await tagWithNvidia(model, base64, mimeType)
-      else out = await tagWithOpenRouter(model, base64, mimeType)
+      const simpleId = normUsageId(model.id)
+      const name = STATUS_NAMES[simpleId] || model.label
+      dispatchModelActive(simpleId)
+      dispatchTagStatus(tried === 0 ? `🤖 Menganalisis dengan ${name}` : `🔄 Fallback ke ${name}`)
+      tried++
 
-      const { text, modelName } = out
-      console.log(`[tagger] ${model.label} raw response:`, text)
+      try {
+        const out = await callProvider(model, base64, mimeType, TAG_PROMPT)
+        const { text, modelName } = out
+        console.log(`[tagger] ${model.label} raw response:`, text)
 
-      const parsed = parseModelJson(text, modelName || model.label)
-      if (!parsed || !parsed.tags.length) {
-        console.warn(`[tagger] ${model.label} returned no usable tags, trying next`)
+        const parsed = parseModelJson(text, modelName || model.label)
+        if (!parsed || !parsed.tags.length) {
+          console.warn(`[tagger] ${model.label} returned no usable tags, trying next`)
+          continue
+        }
+        if (parsed.fallback) {
+          console.info(`[tagger] ${model.label} output not valid JSON; used text fallback`, parsed.tags)
+        }
+
+        // Minimum-tag enforcement: one retry on the SAME model when < 8 tags.
+        let finalTags = parsed.tags
+        if (finalTags.length < 8) {
+          const retryPrompt = `The previous analysis only returned ${finalTags.length} tags which is insufficient. Look at this image again more carefully. You MUST return at least 10 tags. Add more specific observations about: colors, textures, lighting, composition, background elements, foreground details, image style, technical qualities of the photo. Previous tags were: ${finalTags.join(', ')}. Now return a complete JSON with at least 10 tags total.`
+          try {
+            dispatchTagStatus(`🤖 Menambah detail dengan ${name}`)
+            const out2 = await callProvider(model, base64, mimeType, retryPrompt)
+            const parsed2 = parseModelJson(out2.text, modelName || model.label)
+            const merged = normalizeTags([...finalTags, ...((parsed2 && parsed2.tags) || [])])
+            console.log(
+              `[tagger] ${model.label} retry karena hanya ${finalTags.length} tags, hasil retry: ${merged.length} tags`,
+            )
+            finalTags = merged
+          } catch (e) {
+            console.warn(`[tagger] ${model.label} retry gagal:`, e.message)
+          }
+        }
+
+        usage[model.id].used += 1
+        incrementUsage(model.id) // persisted daily counter
+        return { ...parsed, tags: finalTags, model: modelName || model.id, modelLabel: model.label }
+      } catch (err) {
+        if (err.skip) continue
+        if (err.rateLimited) {
+          usage[model.id].exhausted = true
+          markExhausted(model.id) // persisted exhausted flag for today
+          console.warn(`[tagger] ${model.label} rate limited, falling through`)
+          continue
+        }
+        console.warn(`[tagger] ${model.label} error:`, err.message)
         continue
       }
-
-      if (parsed.fallback) {
-        console.info(`[tagger] ${model.label} output not valid JSON; used text fallback`, parsed.tags)
-      }
-
-      usage[model.id].used += 1
-      incrementUsage(model.id) // persisted daily counter
-      return { ...parsed, model: modelName || model.id, modelLabel: model.label }
-    } catch (err) {
-      if (err.skip) {
-        // Missing key for this provider — skip silently to next.
-        continue
-      }
-      if (err.rateLimited) {
-        usage[model.id].exhausted = true
-        markExhausted(model.id) // persisted exhausted flag for today
-        console.warn(`[tagger] ${model.label} rate limited, falling through`)
-        continue
-      }
-      console.warn(`[tagger] ${model.label} error:`, err.message)
-      continue
     }
-  }
 
-  if (allExhausted()) {
-    throw new RateLimitExhaustedError()
+    if (allExhausted()) {
+      throw new RateLimitExhaustedError()
+    }
+    throw new Error('Tidak ada model yang berhasil memberi tag.')
+  } finally {
+    dispatchModelActive(null) // idle once this image is resolved
   }
-  throw new Error('Tidak ada model yang berhasil memberi tag.')
 }

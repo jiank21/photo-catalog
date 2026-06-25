@@ -1,4 +1,11 @@
-import { useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import {
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  forwardRef,
+} from 'react'
 import { FolderSearch, Pause, Play, Square, AlertTriangle, RefreshCw } from 'lucide-react'
 import exifr from 'exifr'
 import {
@@ -10,13 +17,25 @@ import {
   applyTags,
   updatePhotoStatus,
 } from '../lib/supabase'
-import {
-  tagImage,
-  RateLimitExhaustedError,
-  getUsage,
-  resetUsage,
-  allExhausted,
-} from '../lib/tagger'
+import { tagImage, RateLimitExhaustedError, resetUsage } from '../lib/tagger'
+
+// Highlight known model names inside a status line.
+const MODEL_WORDS = ['Gemini', 'OpenRouter', 'NVIDIA', 'Gemma']
+function renderStatus(text) {
+  for (const w of MODEL_WORDS) {
+    const idx = text.indexOf(w)
+    if (idx !== -1) {
+      return (
+        <>
+          {text.slice(0, idx)}
+          <span className="status-model">{w}</span>
+          {text.slice(idx + w.length)}
+        </>
+      )
+    }
+  }
+  return text
+}
 
 // Photo extensions we care about.
 const RASTER_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif'])
@@ -104,9 +123,10 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
   const [state, setState] = useState('idle') // idle | scanning | paused | done | exhausted
   const [phase, setPhase] = useState('scan') // scan | retag
   const [progress, setProgress] = useState(initialProgress)
-  const [usageRows, setUsageRows] = useState(getUsage())
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState('')
+  const [statusText, setStatusText] = useState('')
+  const [dots, setDots] = useState('')
 
   // Section-chooser modal: { files, rootName } while waiting for a choice.
   const [chooser, setChooser] = useState(null)
@@ -117,7 +137,26 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
   const abortRef = useRef(false)
   const startTimeRef = useRef(0)
 
-  const refreshUsage = () => setUsageRows(getUsage())
+  // Animated trailing dots while scanning.
+  useEffect(() => {
+    if (state !== 'scanning') {
+      setDots('')
+      return
+    }
+    let n = 0
+    const id = setInterval(() => {
+      n = (n + 1) % 3
+      setDots('.'.repeat(n + 1))
+    }, 400)
+    return () => clearInterval(id)
+  }, [state])
+
+  // Status updates emitted by the tagger (AI / fallback stages).
+  useEffect(() => {
+    const onStatus = (e) => setStatusText(e.detail?.text || '')
+    window.addEventListener('tagger:status', onStatus)
+    return () => window.removeEventListener('tagger:status', onStatus)
+  }, [])
 
   const waitWhilePaused = useCallback(async () => {
     while (pausedRef.current && !abortRef.current) {
@@ -131,7 +170,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       abortRef.current = false
       pausedRef.current = false
       resetUsage()
-      refreshUsage()
+      setStatusText('')
       setError('')
       setSummary(null)
       setPhase('scan')
@@ -161,6 +200,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
         const canDecode = CANVAS_EXT.has(ext)
 
         setProgress((p) => ({ ...p, current: handle.name, currentModel: '' }))
+        setStatusText('📂 Membaca file foto')
 
         let file
         try {
@@ -212,6 +252,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
         // Decodable raster: thumbnail + EXIF + AI tag.
         let thumb = null
         let exifDate = null
+        setStatusText('🖼️ Membuat thumbnail')
         try {
           const [t, exif] = await Promise.all([
             makeThumbnail(file),
@@ -258,7 +299,6 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
             }
             counters.pending++
             const finalDone = i + 1
-            refreshUsage()
             setProgress((p) => ({ ...p, done: finalDone, pending: counters.pending }))
             await updateScanSession(session.id, {
               finished_at: new Date().toISOString(),
@@ -274,6 +314,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
           console.warn('tagging error:', e.message)
         }
 
+        setStatusText('💾 Menyimpan ke database')
         try {
           await upsertPhoto(
             {
@@ -293,7 +334,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
         if (status === 'tagged') counters.tagged++
         else counters.pending++
-        refreshUsage()
+        setStatusText('✅ Selesai!')
         setProgress((p) => ({
           ...p,
           done: p.done + 1,
@@ -321,7 +362,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       abortRef.current = false
       pausedRef.current = false
       resetUsage()
-      refreshUsage()
+      setStatusText('')
       setError('')
       setSummary(null)
       setPhase('retag')
@@ -348,9 +389,10 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
         const base64 = p.thumbnail_base64.split(',')[1]
         try {
           const tagResult = await tagImage(base64, 'image/jpeg')
+          setStatusText('💾 Menyimpan ke database')
           await applyTags(p.id, tagResult.tags, tagResult.model, 'tagged')
           counters.tagged++
-          refreshUsage()
+          setStatusText('✅ Selesai!')
           setProgress((s) => ({
             ...s,
             done: s.done + 1,
@@ -362,7 +404,6 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
             await updatePhotoStatus(p.id, 'pending')
             counters.pending++
             const finalDone = i + 1
-            refreshUsage()
             setProgress((s) => ({ ...s, done: finalDone, pending: counters.pending }))
             finishExhausted(counters, photos.length - finalDone)
             return
@@ -381,6 +422,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
   // ---------------- Finishers ----------------
   function finishDone(counters, total, aborted) {
+    setStatusText('')
     setSummary({
       total,
       ...counters,
@@ -394,6 +436,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
   }
 
   function finishExhausted(counters, remaining) {
+    setStatusText('')
     setSummary({
       total: counters.tagged + counters.pending + counters.failed + counters.skipped + remaining,
       ...counters,
@@ -527,16 +570,18 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       {busy && (
         <div className="scanner__progress">
           <div className="progress-bar">
-            <div className="progress-bar__fill" style={{ width: `${pct}%` }} />
+            <div
+              className={`progress-bar__fill${state === 'scanning' ? ' progress-bar__fill--active' : ''}`}
+              style={{ width: `${pct}%` }}
+            />
           </div>
           <div className="scanner__progress-text">
             <span>
-              {phase === 'retag' ? 'Foto' : 'Foto'} {progress.done} / {progress.total} ({pct}%)
+              Foto {progress.done} / {progress.total} ({pct}%)
             </span>
             {progress.current && (
               <span className="scanner__current" title={progress.current}>
                 {progress.current}
-                {progress.currentModel ? ` · ${progress.currentModel}` : ''}
               </span>
             )}
           </div>
@@ -547,17 +592,15 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
             <span style={{ color: 'var(--muted)' }}>skipped {progress.skipped}</span>
           </div>
 
-          <div className="usage-grid">
-            {usageRows.map((u) => (
-              <div key={u.id} className={`usage-chip${u.exhausted ? ' usage-chip--out' : ''}`}>
-                <span className="usage-chip__label">{u.label}</span>
-                <span className="usage-chip__count">
-                  {u.used}/{u.limit}
-                  {u.exhausted ? ' · limit' : ''}
-                </span>
-              </div>
-            ))}
-          </div>
+          {statusText && (
+            <div className="scanner__status">
+              <span className="scanner__status-dot" />
+              <span className="scanner__status-text">
+                {renderStatus(statusText)}
+                {!statusText.startsWith('✅') ? dots : ''}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

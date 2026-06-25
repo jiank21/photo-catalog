@@ -181,15 +181,73 @@ code {
   gap: 10px;
 }
 .progress-bar {
-  height: 8px;
+  height: 6px;
   background: var(--surface-2);
   border-radius: 99px;
   overflow: hidden;
 }
 .progress-bar__fill {
   height: 100%;
+  border-radius: 99px;
   background: var(--accent);
-  transition: width 0.2s;
+  transition: width 0.3s ease;
+}
+.progress-bar__fill--active {
+  background: linear-gradient(
+    90deg,
+    #4f6fe8 0%,
+    #6c8ef5 40%,
+    #a0b8ff 50%,
+    #6c8ef5 60%,
+    #4f6fe8 100%
+  );
+  background-size: 200% auto;
+  animation: shimmer 2s linear infinite;
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Scanner status line */
+.scanner__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #8b93a8;
+  margin-top: 2px;
+}
+.scanner__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tagged);
+  flex-shrink: 0;
+  animation: pulse 1.2s infinite;
+}
+.scanner__status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status-model {
+  color: var(--accent);
+  font-weight: 600;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 .scanner__progress-text {
   display: flex;
@@ -1143,13 +1201,38 @@ code {
   min-width: 0;
 }
 .quota-model {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .quota-model--off {
   opacity: 0.45;
+}
+.quota-model--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(108, 142, 245, 0.4);
+}
+.quota-model__pulse {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tagged);
+  animation: pulse 1.2s infinite;
+}
+.quota-model__active-label {
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 .quota-model--off .quota-model__name {
   text-decoration: line-through;
