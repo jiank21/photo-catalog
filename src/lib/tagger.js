@@ -664,29 +664,26 @@ async function tagWithOpenRouter(model, base64, mimeType, prompt = TAG_PROMPT) {
   }
   const data = await res.json()
   if (data?.error) {
-    const msg = data.error.message || 'openrouter error'
-    if (/rate|limit|quota/i.test(msg)) {
-      const e = new Error(msg)
-      e.rateLimited = true
-      throw e
-    }
-    throw new Error(msg)
+    // Body-level error on an HTTP 200. NOT a 429, so treat it as an ordinary
+    // error and skip to the next model — do NOT mark the provider exhausted.
+    throw new Error(data.error.message || 'openrouter error')
   }
   return { text: data?.choices?.[0]?.message?.content || '', modelName: model.id }
 }
 
 async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
-  if (!NVIDIA_KEY) {
-    const e = new Error('VITE_NVIDIA_API_KEY belum di-set')
-    e.skip = true
-    throw e
+  const key = import.meta.env.VITE_NVIDIA_API_KEY
+  console.log('[tagger] NVIDIA key present:', !!key, 'length:', key?.length)
+  if (!key) {
+    console.log('[tagger] NVIDIA skipped: no API key')
+    return null
   }
   const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${NVIDIA_KEY}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: model.model,
@@ -714,13 +711,9 @@ async function tagWithNvidia(model, base64, mimeType, prompt = TAG_PROMPT) {
   }
   const data = await res.json()
   if (data?.error) {
-    const msg = data.error.message || data.error || 'nvidia error'
-    if (/rate|limit|quota/i.test(String(msg))) {
-      const e = new Error(String(msg))
-      e.rateLimited = true
-      throw e
-    }
-    throw new Error(String(msg))
+    // Body-level error on an HTTP 200. NOT a 429, so treat it as an ordinary
+    // error and skip to the next model — do NOT mark the provider exhausted.
+    throw new Error(String(data.error.message || data.error || 'nvidia error'))
   }
   return { text: data?.choices?.[0]?.message?.content || '', modelName: model.model }
 }
@@ -755,6 +748,7 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
 
       try {
         const out = await callProvider(model, base64, mimeType, TAG_PROMPT)
+        if (!out) continue // provider self-skipped (e.g. no key)
         const { text, modelName } = out
         console.log(`[tagger] ${model.label} raw response:`, text)
 
