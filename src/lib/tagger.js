@@ -22,16 +22,10 @@ export class RateLimitExhaustedError extends Error {
 // dailyLimit is informational; we track usage per session for display.
 export const MODELS = [
   {
-    id: 'gemini-1.5-flash',
-    label: 'Gemini 1.5 Flash',
+    id: 'gemini-2.0-flash',
+    label: 'Gemini 2.0 Flash',
     provider: 'gemini',
     dailyLimit: 1500,
-  },
-  {
-    id: 'qwen/qwen2.5-vl-72b-instruct:free',
-    label: 'Qwen2.5-VL 72B',
-    provider: 'openrouter',
-    dailyLimit: 200,
   },
   {
     id: 'google/gemma-4-31b-it:free',
@@ -40,26 +34,32 @@ export const MODELS = [
     dailyLimit: 200,
   },
   {
-    id: 'meta-llama/llama-4-maverick:free',
-    label: 'Llama 4 Maverick',
+    id: 'meta-llama/llama-4-scout:free',
+    label: 'Llama 4 Scout',
     provider: 'openrouter',
     dailyLimit: 200,
   },
   {
-    id: 'qwen/qwen2.5-vl-32b-instruct:free',
-    label: 'Qwen2.5-VL 32B',
+    id: 'google/gemma-3-27b-it:free',
+    label: 'Gemma 3 27B',
     provider: 'openrouter',
     dailyLimit: 200,
   },
   {
-    id: 'nvidia/nemotron-3-nano-omni:free',
-    label: 'Nemotron 3 Nano Omni',
+    id: 'mistralai/mistral-small-3.1-24b-instruct:free',
+    label: 'Mistral Small 3.1 24B',
     provider: 'openrouter',
     dailyLimit: 200,
   },
   {
-    id: 'moonshotai/kimi-vl-a3b-thinking:free',
-    label: 'Kimi VL A3B',
+    id: 'google/gemma-3-12b-it:free',
+    label: 'Gemma 3 12B',
+    provider: 'openrouter',
+    dailyLimit: 200,
+  },
+  {
+    id: 'deepseek/deepseek-chat-v3.1:free',
+    label: 'DeepSeek Chat v3.1',
     provider: 'openrouter',
     dailyLimit: 200,
   },
