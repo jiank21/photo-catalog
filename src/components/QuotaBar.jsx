@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, KeyRound } from 'lucide-react'
+import { cn } from '../lib/cn'
 
 // Bar color by remaining fraction (or red when exhausted).
 function barColor(remaining, quota, exhausted) {
-  if (exhausted) return 'var(--failed)'
+  if (exhausted) return '#ef4444'
   const pct = quota ? remaining / quota : 0
-  if (pct < 0.1) return 'var(--failed)'
-  if (pct < 0.5) return 'var(--pending)'
-  return 'var(--tagged)'
+  if (pct < 0.1) return '#ef4444'
+  if (pct < 0.5) return '#f59e0b'
+  return '#10b981'
 }
 
 export default function QuotaBar({ getStats }) {
@@ -35,8 +36,8 @@ export default function QuotaBar({ getStats }) {
   if (!stats) return null
 
   return (
-    <div className="quota-bar">
-      <div className="quota-bar__models">
+    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-card dark:border-navy-700 dark:bg-navy-800 dark:shadow-card-dark">
+      <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {stats.models.map((m) => {
           const usedPct = m.quota ? Math.min(100, Math.round((m.used / m.quota) * 100)) : 0
           const color = barColor(m.remaining, m.quota, m.exhausted)
@@ -44,40 +45,62 @@ export default function QuotaBar({ getStats }) {
           return (
             <div
               key={m.id}
-              className={`quota-model${m.available ? '' : ' quota-model--off'}${
-                isActive ? ' quota-model--active' : ''
-              }`}
-              title={m.available ? `${m.name}: ${m.used}/${m.quota} terpakai` : `${m.name}: tidak ada API key`}
+              className={cn(
+                'relative flex flex-col gap-2 rounded-xl border border-transparent bg-gray-50 p-3 transition-all duration-200 dark:bg-navy-700',
+                !m.available && 'opacity-50',
+                isActive && 'border-brand-500 ring-2 ring-brand-500/40',
+              )}
+              title={
+                m.available ? `${m.name}: ${m.used}/${m.quota} terpakai` : `${m.name}: tidak ada API key`
+              }
             >
-              {isActive && <span className="quota-model__pulse" aria-hidden="true" />}
-              <div className="quota-model__top">
-                <span className="quota-model__name">
+              {isActive && (
+                <span className="absolute right-2.5 top-2.5 h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              )}
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 truncate font-semibold',
+                    !m.available && 'text-gray-400 line-through',
+                  )}
+                >
                   {!m.available && <KeyRound size={11} />}
                   {m.short}
                 </span>
-                <span className="quota-model__count">
-                  {!m.available
-                    ? 'no key'
-                    : m.exhausted
-                      ? 'exhausted'
-                      : `${m.used} / ${m.quota}`}
+                <span
+                  className={cn(
+                    'shrink-0 tabular-nums',
+                    m.exhausted ? 'text-red-500' : 'text-gray-400',
+                  )}
+                >
+                  {!m.available ? 'no key' : m.exhausted ? 'exhausted' : `${m.used} / ${m.quota}`}
                 </span>
               </div>
-              <div className="quota-model__track">
+              <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-navy-600">
                 <div
-                  className="quota-model__fill"
+                  className="h-full rounded-full transition-all duration-300"
                   style={{ width: m.available ? `${usedPct}%` : '0%', background: color }}
                 />
               </div>
-              {isActive && <span className="quota-model__active-label">active</span>}
+              {isActive && (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-500">
+                  active
+                </span>
+              )}
             </div>
           )
         })}
       </div>
 
-      <div className="quota-bar__total">
-        <span>~{stats.totalRemaining} tag tersisa hari ini</span>
-        <button type="button" className="icon-btn" onClick={refresh} title="Refresh kuota">
+      <div className="flex items-center gap-2 whitespace-nowrap text-sm">
+        <span className="font-bold text-brand-500">~{stats.totalRemaining}</span>
+        <span className="text-gray-400">tag tersisa hari ini</span>
+        <button
+          type="button"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-navy-700"
+          onClick={refresh}
+          title="Refresh kuota"
+        >
           <RefreshCw size={14} />
         </button>
       </div>

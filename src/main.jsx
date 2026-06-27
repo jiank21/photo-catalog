@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import LoginPage from './components/LoginPage.jsx'
 import { isAuthenticated, initDefaultPin } from './lib/auth.js'
+import './lib/theme.js' // applies stored theme class before first paint
 import './index.css'
 
 function Root() {

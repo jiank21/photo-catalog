@@ -1,18 +1,24 @@
-import { Image as ImageIcon, Check, Minus } from 'lucide-react'
+import { Image as ImageIcon, Check, Minus, Folder } from 'lucide-react'
+import { cn } from '../lib/cn'
 
-const STATUS_LABELS = {
-  tagged: 'tagged',
-  pending: 'pending',
-  failed: 'failed',
-  skipped: 'skipped',
+const STATUS_STYLES = {
+  tagged: 'bg-emerald-500/20 text-emerald-500',
+  pending: 'bg-amber-500/20 text-amber-500',
+  failed: 'bg-red-500/20 text-red-500',
+  skipped: 'bg-gray-400/20 text-gray-400',
 }
 
 function StatusBadge({ status, inline }) {
+  const s = status || 'pending'
   return (
     <span
-      className={`status-badge${inline ? ' status-badge--inline' : ''} status-badge--${status || 'pending'}`}
+      className={cn(
+        'rounded-md px-2 py-0.5 text-[10px] font-semibold lowercase backdrop-blur-sm',
+        !inline && 'absolute right-2 top-2',
+        STATUS_STYLES[s] || STATUS_STYLES.pending,
+      )}
     >
-      {STATUS_LABELS[status] || status || 'pending'}
+      {s}
     </span>
   )
 }
@@ -40,7 +46,14 @@ function formatDate(d) {
 
 function SelectBox({ selected }) {
   return (
-    <span className={`select-box${selected ? ' is-checked' : ''}`}>
+    <span
+      className={cn(
+        'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition',
+        selected
+          ? 'border-brand-500 bg-brand-500 text-white'
+          : 'border-gray-300 bg-white/80 text-transparent dark:border-navy-500 dark:bg-navy-700',
+      )}
+    >
       {selected && <Check size={13} strokeWidth={3} />}
     </span>
   )
@@ -53,40 +66,53 @@ function findSectionForFolder(sections, folderPath) {
   return null
 }
 
-function PhotoCard({ photo, onActivate, selectMode, selected }) {
+const tagPill =
+  'rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-medium text-brand-500 whitespace-nowrap'
+
+function PhotoCard({ photo, onActivate, selectMode, selected, large }) {
   const tags = photo.tags || []
   return (
     <button
       type="button"
-      className={`photo-card${selected ? ' is-selected' : ''}`}
+      className={cn(
+        'group flex flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 dark:bg-navy-800',
+        selected
+          ? 'border-brand-500 ring-2 ring-brand-500'
+          : 'border-gray-100 hover:border-brand-300 hover:shadow-card dark:border-navy-700 dark:hover:border-brand-500/50 dark:hover:shadow-card-dark',
+      )}
       onClick={() => onActivate(photo)}
     >
       {selectMode && (
-        <div className="photo-card__checkbar">
+        <div className="flex items-center px-3 pt-3">
           <SelectBox selected={selected} />
         </div>
       )}
-      <div className="photo-card__thumb">
+      <div className={cn('relative bg-gray-100 dark:bg-navy-900', large ? 'aspect-[3/4]' : 'aspect-[4/3]')}>
         {photo.thumbnail_base64 ? (
-          <img src={photo.thumbnail_base64} alt={photo.filename} loading="lazy" />
+          <img
+            src={photo.thumbnail_base64}
+            alt={photo.filename}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
         ) : (
-          <div className="photo-card__placeholder">
+          <div className="flex h-full w-full items-center justify-center text-gray-400">
             <ImageIcon size={28} />
           </div>
         )}
         <StatusBadge status={photo.tag_status} />
       </div>
-      <div className="photo-card__body">
-        <div className="photo-card__name" title={photo.filename}>
+      <div className="p-3">
+        <div className="truncate text-sm font-semibold" title={photo.filename}>
           {photo.filename}
         </div>
-        <div className="photo-card__folder" title={photo.folder_path}>
-          {photo.folder || '—'}
+        <div className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-400" title={photo.folder_path}>
+          <Folder size={11} className="shrink-0" /> {photo.folder || '—'}
         </div>
         {tags.length > 0 && (
-          <div className="photo-card__tags">
+          <div className="mt-2 flex flex-wrap gap-1">
             {tags.slice(0, 4).map((t) => (
-              <span key={t} className="photo-card__tag">
+              <span key={t} className={tagPill}>
                 {t}
               </span>
             ))}
@@ -102,39 +128,47 @@ function PhotoRow({ photo, onActivate, selectMode, selected }) {
   return (
     <button
       type="button"
-      className={`photo-row${selected ? ' is-selected' : ''}`}
+      className={cn(
+        'grid w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors duration-150 last:border-b-0',
+        selectMode
+          ? 'grid-cols-[32px_60px_2fr_2fr_100px_80px_2fr_90px]'
+          : 'grid-cols-[60px_2fr_2fr_100px_80px_2fr_90px]',
+        selected
+          ? 'border-navy-100 bg-brand-500/10 dark:border-navy-700'
+          : 'border-gray-100 hover:bg-gray-50 dark:border-navy-700 dark:hover:bg-navy-700/50',
+      )}
       onClick={() => onActivate(photo)}
     >
       {selectMode && (
-        <div className="photo-row__check">
+        <div className="flex items-center justify-center">
           <SelectBox selected={selected} />
         </div>
       )}
-      <div className="photo-row__thumb">
+      <div className="h-[60px] w-[60px] overflow-hidden rounded-lg bg-gray-100 dark:bg-navy-900">
         {photo.thumbnail_base64 ? (
-          <img src={photo.thumbnail_base64} alt={photo.filename} loading="lazy" />
+          <img src={photo.thumbnail_base64} alt={photo.filename} loading="lazy" className="h-full w-full object-cover" />
         ) : (
-          <div className="photo-card__placeholder">
+          <div className="flex h-full w-full items-center justify-center text-gray-400">
             <ImageIcon size={18} />
           </div>
         )}
       </div>
-      <div className="photo-row__name" title={photo.filename}>
+      <div className="truncate font-medium" title={photo.filename}>
         {photo.filename}
       </div>
-      <div className="photo-row__folder" title={photo.folder_path}>
+      <div className="truncate text-xs text-gray-400" title={photo.folder_path}>
         {photo.folder_path || photo.folder || '—'}
       </div>
-      <div className="photo-row__date">{formatDate(photo.taken_at)}</div>
-      <div className="photo-row__size">{formatBytes(photo.file_size)}</div>
-      <div className="photo-row__tags">
+      <div className="truncate text-xs text-gray-400">{formatDate(photo.taken_at)}</div>
+      <div className="truncate text-xs text-gray-400">{formatBytes(photo.file_size)}</div>
+      <div className="flex flex-wrap gap-1 overflow-hidden">
         {tags.slice(0, 3).map((t) => (
-          <span key={t} className="photo-card__tag">
+          <span key={t} className={tagPill}>
             {t}
           </span>
         ))}
       </div>
-      <div className="photo-row__status">
+      <div>
         <StatusBadge status={photo.tag_status} inline />
       </div>
     </button>
@@ -145,9 +179,12 @@ function MasterCheckbox({ allSelected, someSelected, onToggle }) {
   return (
     <button
       type="button"
-      className={`select-box select-box--master${allSelected ? ' is-checked' : ''}${
-        !allSelected && someSelected ? ' is-indeterminate' : ''
-      }`}
+      className={cn(
+        'inline-flex h-5 w-5 items-center justify-center rounded-md border-2 transition',
+        allSelected || someSelected
+          ? 'border-brand-500 bg-brand-500 text-white'
+          : 'border-gray-300 dark:border-navy-500',
+      )}
       onClick={onToggle}
       aria-label="Pilih / batalkan semua"
       title="Pilih / batalkan semua yang tampil"
@@ -178,7 +215,7 @@ export default function PhotoGrid({
 }) {
   if (!loading && photos.length === 0) {
     return (
-      <div className="empty-state">
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-200 py-20 text-center text-gray-400 dark:border-navy-700">
         <ImageIcon size={40} />
         <p>Belum ada foto. Scan folder dulu untuk mengisi katalog.</p>
       </div>
@@ -186,6 +223,7 @@ export default function PhotoGrid({
   }
 
   const isList = view === 'list'
+  const large = view === 'large'
   const activate = (photo) => (selectMode ? onToggleSelect?.(photo.id) : onOpen(photo))
   const isSelected = (id) => !!selectedIds && selectedIds.has(id)
 
@@ -207,11 +245,11 @@ export default function PhotoGrid({
   }
 
   const titleBar = (
-    <div className="grid-titlebar">
-      <span className="grid-titlebar__title" title={titleLabel}>
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="truncate text-base font-semibold" title={titleLabel}>
         {titleIcon} {titleLabel}
       </span>
-      <span className="grid-titlebar__count">
+      <span className="shrink-0 text-sm tabular-nums text-gray-400">
         {photos.length} foto{loading ? '…' : ''}
       </span>
     </div>
@@ -244,6 +282,10 @@ export default function PhotoGrid({
     return groups
   }
 
+  const gridClass = large
+    ? 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]'
+    : 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]'
+
   const renderCard = (p) => (
     <PhotoCard
       key={p.id}
@@ -251,15 +293,20 @@ export default function PhotoGrid({
       onActivate={activate}
       selectMode={selectMode}
       selected={isSelected(p.id)}
+      large={large}
     />
   )
 
   const footer = (
     <>
-      {loading && <div className="grid-loading">Memuat…</div>}
+      {loading && <div className="py-6 text-center text-gray-400">Memuat…</div>}
       {!loading && hasMore && (
-        <div className="load-more">
-          <button type="button" className="btn btn--ghost" onClick={onLoadMore}>
+        <div className="flex justify-center py-3">
+          <button
+            type="button"
+            className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-500 dark:border-navy-700 dark:text-gray-300"
+            onClick={onLoadMore}
+          >
             Muat lebih banyak
           </button>
         </div>
@@ -269,17 +316,20 @@ export default function PhotoGrid({
 
   if (isList) {
     return (
-      <>
+      <div className="flex flex-col gap-4">
         {titleBar}
-        <div className={`photo-list${selectMode ? ' is-select' : ''}`}>
-          <div className="photo-list__head">
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white dark:border-navy-700 dark:bg-navy-800">
+          <div
+            className={cn(
+              'grid items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-navy-700 dark:bg-navy-900',
+              selectMode
+                ? 'grid-cols-[32px_60px_2fr_2fr_100px_80px_2fr_90px]'
+                : 'grid-cols-[60px_2fr_2fr_100px_80px_2fr_90px]',
+            )}
+          >
             {selectMode && (
-              <span className="photo-list__check">
-                <MasterCheckbox
-                  allSelected={allSelected}
-                  someSelected={someSelected}
-                  onToggle={onToggleSelectAll}
-                />
+              <span className="flex items-center justify-center">
+                <MasterCheckbox allSelected={allSelected} someSelected={someSelected} onToggle={onToggleSelectAll} />
               </span>
             )}
             <span />
@@ -301,29 +351,31 @@ export default function PhotoGrid({
           ))}
         </div>
         {footer}
-      </>
+      </div>
     )
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {titleBar}
       {grouping ? (
-        <div className="photo-groups">
+        <div className="flex flex-col gap-6">
           {buildGroups().map((g) => (
-            <div key={g.id} className="photo-group">
-              <div className="photo-group__header">
-                {g.color && <span className="section-item__dot" style={{ background: g.color }} />}
+            <div key={g.id} className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 border-b border-gray-200 pb-2 text-sm font-semibold text-gray-500 dark:border-navy-700 dark:text-navy-100">
+                {g.color && (
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: g.color }} />
+                )}
                 📁 {g.name} — {g.photos.length} foto
               </div>
-              <div className={`photo-grid photo-grid--${view}`}>{g.photos.map(renderCard)}</div>
+              <div className={gridClass}>{g.photos.map(renderCard)}</div>
             </div>
           ))}
         </div>
       ) : (
-        <div className={`photo-grid photo-grid--${view}`}>{photos.map(renderCard)}</div>
+        <div className={gridClass}>{photos.map(renderCard)}</div>
       )}
       {footer}
-    </>
+    </div>
   )
 }

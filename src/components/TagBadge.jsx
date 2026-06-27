@@ -1,9 +1,16 @@
 import { X } from 'lucide-react'
+import { cn } from '../lib/cn'
 
 export default function TagBadge({ tag, source, onClick, onRemove }) {
   return (
     <span
-      className={`tag-badge${source === 'manual' ? ' tag-badge--manual' : ''}${onClick ? ' tag-badge--clickable' : ''}`}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition',
+        source === 'manual'
+          ? 'bg-emerald-500/10 text-emerald-500'
+          : 'bg-brand-500/10 text-brand-500',
+        onClick && 'cursor-pointer hover:brightness-110',
+      )}
       onClick={onClick ? () => onClick(tag) : undefined}
       title={onClick ? `Cari "${tag}"` : tag}
     >
@@ -11,7 +18,7 @@ export default function TagBadge({ tag, source, onClick, onRemove }) {
       {onRemove && (
         <button
           type="button"
-          className="tag-badge__remove"
+          className="inline-flex items-center opacity-70 transition hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation()
             onRemove(tag)

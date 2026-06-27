@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
-  Camera,
   AlertCircle,
   LayoutGrid,
   Grid2x2,
@@ -9,7 +8,6 @@ import {
   RefreshCw,
   Trash2,
   X,
-  HelpCircle,
 } from 'lucide-react'
 import {
   searchPhotos,
@@ -20,13 +18,15 @@ import {
   hasSupabaseConfig,
 } from './lib/supabase'
 import { getUsageStats } from './lib/tagger'
+import { cn } from './lib/cn'
+import Sidebar from './components/Sidebar'
+import Navbar from './components/Navbar'
 import Scanner from './components/Scanner'
 import QuotaBar from './components/QuotaBar'
 import SearchBar from './components/SearchBar'
 import PhotoGrid from './components/PhotoGrid'
 import PhotoModal from './components/PhotoModal'
 import StatsBar from './components/StatsBar'
-import SectionManager from './components/SectionManager'
 import SettingsModal from './components/SettingsModal'
 import HelpModal from './components/HelpModal'
 
@@ -41,12 +41,21 @@ const VIEW_OPTIONS = [
 
 function ViewToggle({ view, onChange }) {
   return (
-    <div className="view-toggle" role="group" aria-label="Tampilan">
+    <div
+      className="inline-flex shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-navy-700 dark:bg-navy-800"
+      role="group"
+      aria-label="Tampilan"
+    >
       {VIEW_OPTIONS.map(({ id, icon: Icon, label }) => (
         <button
           key={id}
           type="button"
-          className={`view-toggle__btn${view === id ? ' is-active' : ''}`}
+          className={cn(
+            'flex items-center px-3 py-2.5 transition-all duration-200',
+            view === id
+              ? 'bg-brand-500 text-white shadow-md'
+              : 'text-gray-400 hover:text-brand-500 dark:hover:text-white',
+          )}
           onClick={() => onChange(id)}
           title={label}
           aria-label={label}
@@ -67,8 +76,17 @@ function SelectAllCheckbox({ checked, indeterminate, onChange }) {
     if (ref.current) ref.current.indeterminate = indeterminate
   }, [indeterminate])
   return (
-    <label className="master-check" title="Pilih / batalkan semua yang tampil">
-      <input type="checkbox" ref={ref} checked={checked} onChange={onChange} />
+    <label
+      className="flex cursor-pointer select-none items-center gap-2 border-r border-gray-200 pr-3 text-sm text-gray-500 dark:border-navy-600 dark:text-gray-300"
+      title="Pilih / batalkan semua yang tampil"
+    >
+      <input
+        type="checkbox"
+        ref={ref}
+        checked={checked}
+        onChange={onChange}
+        className="h-4 w-4 cursor-pointer accent-brand-500"
+      />
       Semua
     </label>
   )
@@ -262,131 +280,151 @@ export default function App({ onLogout }) {
     }
   }
 
+  const allSelected = photos.length > 0 && photos.every((p) => selectedIds.has(p.id))
+  const someSelected = selectedIds.size > 0 && !allSelected
+
+  // Breadcrumb pieces for the navbar.
+  const activeSectionName =
+    activeSection === 'all' ? null : sections.find((s) => s.id === activeSection)?.name || 'Section'
+  const activeFolderName = activeFolderPath
+    ? activeFolderPath.split('/').pop() || activeFolderPath
+    : null
+
   return (
-    <div className="app">
-      <header className="app__header">
-        <div className="app__brand">
-          <Camera size={22} className="app__logo" />
-          <h1>Photo Catalog</h1>
-        </div>
-        <StatsBar stats={stats} />
-        <button
-          type="button"
-          className="help-btn"
-          onClick={() => setShowHelp(true)}
-          title="Panduan & FAQ"
-          aria-label="Bantuan"
-        >
-          <HelpCircle size={20} />
-        </button>
-      </header>
+    <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-800 dark:bg-navy-900 dark:text-white">
+      <Sidebar
+        sections={sections}
+        activeSection={activeSection}
+        activeFolderPath={activeFolderPath}
+        onSelectSection={handleSelectSection}
+        onSelectFolder={handleSelectFolder}
+        onRefresh={refreshMeta}
+        onScanToSection={handleScanToSection}
+        onRetag={handleRetag}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenHelp={() => setShowHelp(true)}
+      />
 
-      {!hasSupabaseConfig && (
-        <div className="banner banner--error">
-          <AlertCircle size={16} />
-          Supabase belum dikonfigurasi. Salin <code>.env.example</code> ke <code>.env</code> dan isi{' '}
-          <code>VITE_SUPABASE_URL</code> &amp; <code>VITE_SUPABASE_ANON_KEY</code>.
-        </div>
-      )}
-
-      <div className="app__body">
-        <SectionManager
-          sections={sections}
-          activeSection={activeSection}
-          activeFolderPath={activeFolderPath}
-          onSelectSection={handleSelectSection}
-          onSelectFolder={handleSelectFolder}
-          onRefresh={refreshMeta}
-          onScanToSection={handleScanToSection}
-          onRetag={handleRetag}
+      <div className="ml-[280px] flex flex-1 flex-col overflow-hidden">
+        <Navbar
+          sectionName={activeSectionName}
+          folderName={activeFolderName}
+          query={query}
+          onQueryChange={setQuery}
           onOpenSettings={() => setShowSettings(true)}
+          onLogout={onLogout}
         />
 
-        <main className="app__main">
-          <Scanner ref={scannerRef} sections={sections} onScanDone={handleScanDone} />
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
+            {!hasSupabaseConfig && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-500 dark:text-red-300">
+                <AlertCircle size={16} />
+                <span>
+                  Supabase belum dikonfigurasi. Salin <code className="rounded bg-black/10 px-1 dark:bg-white/10">.env.example</code> ke{' '}
+                  <code className="rounded bg-black/10 px-1 dark:bg-white/10">.env</code> dan isi{' '}
+                  <code className="rounded bg-black/10 px-1 dark:bg-white/10">VITE_SUPABASE_URL</code> &amp;{' '}
+                  <code className="rounded bg-black/10 px-1 dark:bg-white/10">VITE_SUPABASE_ANON_KEY</code>.
+                </span>
+              </div>
+            )}
 
-          <QuotaBar getStats={getUsageStats} />
+            <Scanner ref={scannerRef} sections={sections} onScanDone={handleScanDone} />
 
-          <div className="search-row">
-            <SearchBar
-              value={query}
-              onChange={setQuery}
-              status={status}
-              onStatusChange={setStatus}
-              folder={folder}
-              onFolderChange={setFolder}
-              folders={folders}
-            />
-            <button
-              type="button"
-              className={`btn${selectMode ? ' btn--primary' : ''}`}
-              onClick={toggleSelectMode}
-              title="Pilih beberapa foto untuk aksi massal"
-            >
-              <CheckSquare size={16} /> {selectMode ? 'Mode Pilih' : 'Pilih Foto'}
-            </button>
-            <ViewToggle view={view} onChange={setView} />
-          </div>
+            <QuotaBar getStats={getUsageStats} />
 
-          {activeFolderPath && (
-            <div className="filter-chip">
-              Folder: <b>{activeFolderPath}</b>
-              <button type="button" onClick={() => setActiveFolderPath(null)} aria-label="Hapus filter">
-                <X size={13} />
-              </button>
-            </div>
-          )}
+            <StatsBar stats={stats} />
 
-          {selectMode && (
-            <div className="select-toolbar">
-              <SelectAllCheckbox
-                checked={photos.length > 0 && photos.every((p) => selectedIds.has(p.id))}
-                indeterminate={
-                  selectedIds.size > 0 && !photos.every((p) => selectedIds.has(p.id))
-                }
-                onChange={toggleSelectAll}
+            <div className="flex flex-col items-start gap-3 sm:flex-row">
+              <SearchBar
+                value={query}
+                onChange={setQuery}
+                status={status}
+                onStatusChange={setStatus}
+                folder={folder}
+                onFolderChange={setFolder}
+                folders={folders}
               />
-              <span className="select-toolbar__count">{selectedIds.size} foto dipilih</span>
               <button
                 type="button"
-                className="btn btn--small"
-                onClick={bulkRetag}
-                disabled={bulkBusy || selectedIds.size === 0}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-200',
+                  selectMode
+                    ? 'border-transparent bg-brand-500 text-white shadow-md'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300 dark:border-navy-700 dark:bg-navy-800 dark:text-gray-300 dark:hover:border-brand-500/50',
+                )}
+                onClick={toggleSelectMode}
+                title="Pilih beberapa foto untuk aksi massal"
               >
-                <RefreshCw size={14} /> Re-tag Terpilih
+                <CheckSquare size={16} /> {selectMode ? 'Mode Pilih' : 'Pilih Foto'}
               </button>
-              <button
-                type="button"
-                className="btn btn--small btn--danger"
-                onClick={bulkDelete}
-                disabled={bulkBusy || selectedIds.size === 0}
-                title="Hapus foto dari katalog (file asli tidak dihapus)"
-              >
-                <Trash2 size={14} /> Hapus Entry
-              </button>
-              <button type="button" className="btn btn--small" onClick={clearSelection}>
-                <X size={14} /> Cancel
-              </button>
+              <ViewToggle view={view} onChange={setView} />
             </div>
-          )}
 
-          <PhotoGrid
-            photos={photos}
-            loading={loading}
-            hasMore={hasMore}
-            onLoadMore={() => load(false)}
-            onOpen={setSelected}
-            view={view}
-            selectMode={selectMode}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onToggleSelectAll={toggleSelectAll}
-            sections={sections}
-            activeSection={activeSection}
-            activeFolderPath={activeFolderPath}
-          />
+            {activeFolderPath && (
+              <div className="inline-flex max-w-full items-center gap-2 self-start rounded-xl bg-brand-500/10 px-3 py-1.5 text-xs text-brand-500">
+                Folder: <b className="truncate">{activeFolderPath}</b>
+                <button
+                  type="button"
+                  onClick={() => setActiveFolderPath(null)}
+                  aria-label="Hapus filter"
+                  className="opacity-80 transition hover:opacity-100"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+
+            <PhotoGrid
+              photos={photos}
+              loading={loading}
+              hasMore={hasMore}
+              onLoadMore={() => load(false)}
+              onOpen={setSelected}
+              view={view}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onToggleSelectAll={toggleSelectAll}
+              sections={sections}
+              activeSection={activeSection}
+              activeFolderPath={activeFolderPath}
+            />
+          </div>
         </main>
       </div>
+
+      {/* Floating select toolbar */}
+      {selectMode && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white/90 px-6 py-3 shadow-2xl backdrop-blur-md dark:border-navy-600 dark:bg-navy-800/90">
+          <SelectAllCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleSelectAll} />
+          <span className="text-sm font-semibold tabular-nums">{selectedIds.size} foto dipilih</span>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500/10 px-3 py-2 text-sm font-medium text-brand-500 transition-all duration-200 hover:bg-brand-500 hover:text-white disabled:opacity-50"
+            onClick={bulkRetag}
+            disabled={bulkBusy || selectedIds.size === 0}
+          >
+            <RefreshCw size={14} /> Re-tag
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 px-3 py-2 text-sm font-medium text-red-500 transition-all duration-200 hover:bg-red-500 hover:text-white disabled:opacity-50"
+            onClick={bulkDelete}
+            disabled={bulkBusy || selectedIds.size === 0}
+            title="Hapus foto dari katalog (file asli tidak dihapus)"
+          >
+            <Trash2 size={14} /> Hapus
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-gray-400 transition-all duration-200 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-navy-700 dark:hover:text-white"
+            onClick={clearSelection}
+          >
+            <X size={14} /> Cancel
+          </button>
+        </div>
+      )}
 
       <PhotoModal
         photo={selected}
@@ -396,9 +434,7 @@ export default function App({ onLogout }) {
         onRetagPhoto={handleRetagPhoto}
       />
 
-      {showSettings && (
-        <SettingsModal onClose={() => setShowSettings(false)} onLogout={onLogout} />
-      )}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onLogout={onLogout} />}
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
     </div>

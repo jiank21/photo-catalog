@@ -6,7 +6,7 @@ import {
   useImperativeHandle,
   forwardRef,
 } from 'react'
-import { FolderSearch, Pause, Play, Square, AlertTriangle, RefreshCw } from 'lucide-react'
+import { FolderSearch, Pause, Play, Square, AlertTriangle, RefreshCw, ScanLine } from 'lucide-react'
 import {
   createScanSession,
   updateScanSession,
@@ -57,7 +57,7 @@ function renderStatus(text) {
       return (
         <>
           {text.slice(0, idx)}
-          <span className="status-model">{w}</span>
+          <span className="font-semibold text-brand-500">{w}</span>
           {text.slice(idx + w.length)}
         </>
       )
@@ -147,6 +147,9 @@ const initialProgress = {
   currentModel: '',
   label: '',
 }
+
+const cardClass =
+  'rounded-2xl border border-gray-100 bg-white p-6 shadow-card dark:border-navy-700 dark:bg-navy-800 dark:shadow-card-dark'
 
 const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) {
   const [state, setState] = useState('idle') // idle | scanning | paused | done | exhausted
@@ -528,7 +531,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
     runScan(files, rootName, sectionId)
   }, [chooser, chooserSection, newSectionName, runScan])
 
-  // ---------------- Imperative API for App / SectionManager ----------------
+  // ---------------- Imperative API for App / Sidebar ----------------
   useImperativeHandle(ref, () => ({
     scan: (presetSectionId) => pickFolder(presetSectionId),
     retag: async ({ scope, value, label }) => {
@@ -555,8 +558,8 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
   // ---------------- Render ----------------
   if (!supportsFSA) {
     return (
-      <div className="scanner scanner--warn">
-        <AlertTriangle size={18} />
+      <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm text-amber-600 dark:text-amber-400">
+        <AlertTriangle size={18} className="shrink-0" />
         <span>
           Browser kamu tidak mendukung <b>File System Access API</b>. Gunakan Chrome atau Edge
           (desktop) untuk fitur scan folder.
@@ -569,69 +572,111 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
-    <div className="scanner">
-      <div className="scanner__row">
-        {!busy && (
-          <button type="button" className="btn btn--primary" onClick={() => pickFolder(null)}>
-            <FolderSearch size={16} /> Pilih Folder &amp; Scan
-          </button>
-        )}
-
-        {busy && (
-          <>
-            <span className="scanner__phase">
-              {phase === 'retag' ? <RefreshCw size={15} /> : <FolderSearch size={15} />}
-              {phase === 'retag' ? 'Re-tagging' : 'Scanning'}
-              {progress.label ? `: ${progress.label}` : ''}
+    <div className={cardClass}>
+      {!busy && (
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-4">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-purple-500 text-white shadow-md">
+              <ScanLine size={26} />
             </span>
-            <button type="button" className="btn" onClick={() => {
-              pausedRef.current = !pausedRef.current
-              setState(pausedRef.current ? 'paused' : 'scanning')
-            }}>
-              {state === 'paused' ? <Play size={16} /> : <Pause size={16} />}
-              {state === 'paused' ? 'Resume' : 'Pause'}
-            </button>
-            <button type="button" className="btn btn--danger" onClick={() => {
-              abortRef.current = true
-              pausedRef.current = false
-            }}>
-              <Square size={16} /> Stop
-            </button>
-          </>
-        )}
-      </div>
-
-      {error && <div className="scanner__error">{error}</div>}
+            <div>
+              <h2 className="text-lg font-bold">Scan Folder Foto</h2>
+              <p className="text-sm text-gray-400">
+                Pilih folder di harddisk untuk membaca &amp; menandai foto otomatis.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-purple-500 px-6 py-3 font-semibold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+            onClick={() => pickFolder(null)}
+          >
+            <FolderSearch size={18} /> Pilih Folder &amp; Scan
+          </button>
+        </div>
+      )}
 
       {busy && (
-        <div className="scanner__progress">
-          <div className="progress-bar">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="mr-auto inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-300">
+            {phase === 'retag' ? <RefreshCw size={15} /> : <FolderSearch size={15} />}
+            {phase === 'retag' ? 'Re-tagging' : 'Scanning'}
+            {progress.label ? `: ${progress.label}` : ''}
+          </span>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-brand-300 dark:border-navy-600 dark:bg-navy-700 dark:text-gray-300"
+            onClick={() => {
+              pausedRef.current = !pausedRef.current
+              setState(pausedRef.current ? 'paused' : 'scanning')
+            }}
+          >
+            {state === 'paused' ? <Play size={16} /> : <Pause size={16} />}
+            {state === 'paused' ? 'Resume' : 'Pause'}
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 px-4 py-2 text-sm font-medium text-red-500 transition hover:bg-red-500 hover:text-white"
+            onClick={() => {
+              abortRef.current = true
+              pausedRef.current = false
+            }}
+          >
+            <Square size={16} /> Stop
+          </button>
+        </div>
+      )}
+
+      {error && <div className="mt-3 text-sm text-red-500">{error}</div>}
+
+      {busy && (
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-navy-700">
             <div
-              className={`progress-bar__fill${state === 'scanning' ? ' progress-bar__fill--active' : ''}`}
-              style={{ width: `${pct}%` }}
+              className={
+                'h-full rounded-full bg-brand-500 transition-all duration-300' +
+                (state === 'scanning' ? ' animate-shimmer bg-[length:200%_auto]' : '')
+              }
+              style={
+                state === 'scanning'
+                  ? {
+                      width: `${pct}%`,
+                      backgroundImage:
+                        'linear-gradient(90deg, #444CE7 0%, #6172F3 40%, #A4BCFC 50%, #6172F3 60%, #444CE7 100%)',
+                    }
+                  : { width: `${pct}%` }
+              }
             />
           </div>
-          <div className="scanner__progress-text">
+          <div className="flex justify-between gap-3 text-sm text-gray-400">
             <span>
               Foto {progress.done} / {progress.total} ({pct}%)
             </span>
             {progress.current && (
-              <span className="scanner__current" title={progress.current}>
+              <span className="max-w-[60%] truncate" title={progress.current}>
                 {progress.current}
               </span>
             )}
           </div>
-          <div className="scanner__counters">
-            <span style={{ color: '#3ecf8e' }}>tagged {progress.tagged}</span>
-            <span style={{ color: '#f5a623' }}>pending {progress.pending}</span>
-            <span style={{ color: '#f55a5a' }}>failed {progress.failed}</span>
-            <span style={{ color: 'var(--muted)' }}>skipped {progress.skipped}</span>
+          <div className="flex flex-wrap gap-3 text-xs">
+            <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-500">
+              tagged {progress.tagged}
+            </span>
+            <span className="rounded-full bg-amber-500/10 px-2.5 py-1 font-medium text-amber-500">
+              pending {progress.pending}
+            </span>
+            <span className="rounded-full bg-red-500/10 px-2.5 py-1 font-medium text-red-500">
+              failed {progress.failed}
+            </span>
+            <span className="rounded-full bg-gray-400/10 px-2.5 py-1 font-medium text-gray-400">
+              skipped {progress.skipped}
+            </span>
           </div>
 
           {statusText && (
-            <div className="scanner__status">
-              <span className="scanner__status-dot" />
-              <span className="scanner__status-text">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+              <span className="min-w-0 truncate">
                 {renderStatus(statusText)}
                 {!statusText.startsWith('✅') ? dots : ''}
               </span>
@@ -641,8 +686,8 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       )}
 
       {state === 'exhausted' && summary && (
-        <div className="scanner__summary scanner__summary--warn">
-          <AlertTriangle size={16} />
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-600 dark:text-amber-400">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <div>
             <b>Semua model sudah mencapai limit hari ini.</b> Sisa {summary.remaining} foto disimpan
             sebagai <i>pending</i>. Buka lagi besok untuk lanjutkan. ({summary.tagged} tagged,{' '}
@@ -653,7 +698,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       )}
 
       {state === 'done' && summary && (
-        <div className="scanner__summary">
+        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-navy-700 dark:bg-navy-700">
           {summary.aborted ? 'Dihentikan.' : 'Selesai!'} {summary.total} foto · {summary.tagged}{' '}
           tagged · {summary.pending} pending · {summary.failed} failed · {summary.skipped} skipped ·{' '}
           {summary.seconds}s
@@ -662,54 +707,69 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
       {/* Section chooser modal */}
       {chooser && (
-        <div className="modal-overlay" onClick={() => setChooser(null)}>
-          <div className="modal modal--narrow" onClick={(e) => e.stopPropagation()}>
-            <div className="modal__info">
-              <h2 className="modal__title">Tambahkan ke section mana?</h2>
-              <p className="hint">
-                Folder <b>{chooser.rootName}</b> · {chooser.files.length} foto ditemukan.
-              </p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm"
+          onClick={() => setChooser(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-navy-700 dark:bg-navy-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold">Tambahkan ke section mana?</h2>
+            <p className="mt-1 text-sm text-gray-400">
+              Folder <b className="text-gray-600 dark:text-gray-200">{chooser.rootName}</b> ·{' '}
+              {chooser.files.length} foto ditemukan.
+            </p>
 
-              <div className="field">
-                <label>Section</label>
-                <select
-                  className="select"
-                  style={{ width: '100%' }}
-                  value={chooserSection}
-                  onChange={(e) => setChooserSection(e.target.value)}
-                >
-                  <option value="">(Tanpa section)</option>
-                  {sections.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                  <option value="__new__">+ Buat section baru…</option>
-                </select>
+            <div className="mt-4">
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">
+                Section
+              </label>
+              <select
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-600 dark:bg-navy-900 dark:text-white"
+                value={chooserSection}
+                onChange={(e) => setChooserSection(e.target.value)}
+              >
+                <option value="">(Tanpa section)</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+                <option value="__new__">+ Buat section baru…</option>
+              </select>
+            </div>
+
+            {chooserSection === '__new__' && (
+              <div className="mt-3">
+                <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-400">
+                  Nama section baru
+                </label>
+                <input
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-600 dark:bg-navy-900 dark:text-white"
+                  placeholder={chooser.rootName}
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  autoFocus
+                />
               </div>
+            )}
 
-              {chooserSection === '__new__' && (
-                <div className="field">
-                  <label>Nama section baru</label>
-                  <input
-                    className="select"
-                    style={{ width: '100%' }}
-                    placeholder={chooser.rootName}
-                    value={newSectionName}
-                    onChange={(e) => setNewSectionName(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-              )}
-
-              <div className="scanner__row" style={{ marginTop: 8 }}>
-                <button type="button" className="btn btn--primary" onClick={confirmChooser}>
-                  <FolderSearch size={15} /> Mulai Scan
-                </button>
-                <button type="button" className="btn" onClick={() => setChooser(null)}>
-                  Batal
-                </button>
-              </div>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-purple-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:-translate-y-0.5"
+                onClick={confirmChooser}
+              >
+                <FolderSearch size={15} /> Mulai Scan
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-navy-600 dark:text-gray-300 dark:hover:bg-navy-700"
+                onClick={() => setChooser(null)}
+              >
+                Batal
+              </button>
             </div>
           </div>
         </div>

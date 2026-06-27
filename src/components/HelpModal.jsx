@@ -18,6 +18,7 @@ import {
   Cloud,
   Aperture,
 } from 'lucide-react'
+import { cn } from '../lib/cn'
 
 const STEPS = [
   {
@@ -158,12 +159,28 @@ const TABS = [
 function FaqItem({ q, a }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className={`faq-item${open ? ' is-open' : ''}`}>
-      <button type="button" className="faq-item__q" onClick={() => setOpen((o) => !o)}>
+    <div className="border-b border-gray-200 dark:border-navy-700">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 py-3.5 text-left text-sm font-medium"
+        onClick={() => setOpen((o) => !o)}
+      >
         <span>{q}</span>
-        <ChevronDown size={16} className="faq-item__chevron" />
+        <ChevronDown
+          size={16}
+          className={cn('shrink-0 text-gray-400 transition-transform duration-200', open && 'rotate-180')}
+        />
       </button>
-      {open && <div className="faq-item__a">{a}</div>}
+      <div
+        className={cn(
+          'grid transition-all duration-200',
+          open ? 'grid-rows-[1fr] pb-3.5' : 'grid-rows-[0fr]',
+        )}
+      >
+        <div className="overflow-hidden whitespace-pre-line text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+          {a}
+        </div>
+      </div>
     </div>
   )
 }
@@ -172,23 +189,39 @@ export default function HelpModal({ onClose }) {
   const [tab, setTab] = useState('start')
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal--help" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="modal__close" onClick={onClose} aria-label="Tutup">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-h-[90vh] w-full max-w-[680px] overflow-auto rounded-3xl border border-gray-100 bg-white shadow-2xl dark:border-navy-700 dark:bg-navy-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 dark:hover:bg-navy-700"
+          onClick={onClose}
+          aria-label="Tutup"
+        >
           <X size={20} />
         </button>
 
-        <div className="help">
-          <h2 className="help__title">📸 Panduan Photo Catalog</h2>
+        <div className="p-6">
+          <h2 className="text-xl font-bold">📸 Panduan Photo Catalog</h2>
 
-          <div className="help__tabs" role="tablist">
+          <div className="mb-5 mt-4 flex gap-1 border-b border-gray-200 dark:border-navy-700" role="tablist">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 role="tab"
                 aria-selected={tab === t.id}
-                className={`help__tab${tab === t.id ? ' is-active' : ''}`}
+                className={cn(
+                  '-mb-px border-b-2 px-4 py-2.5 text-sm transition',
+                  tab === t.id
+                    ? 'border-brand-500 font-semibold text-brand-500'
+                    : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-200',
+                )}
                 onClick={() => setTab(t.id)}
               >
                 {t.label}
@@ -197,15 +230,17 @@ export default function HelpModal({ onClose }) {
           </div>
 
           {tab === 'start' && (
-            <ol className="help__steps">
+            <ol className="flex flex-col gap-5">
               {STEPS.map((s, i) => (
-                <li key={s.title} className="help-step">
-                  <span className="help-step__num">{i + 1}</span>
-                  <div className="help-step__body">
-                    <div className="help-step__title">
+                <li key={s.title} className="flex gap-4">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-purple-500 text-sm font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <div className="mb-1 flex items-center gap-2 font-semibold">
                       {s.icon} {s.title}
                     </div>
-                    <p className="help-step__text">{s.body}</p>
+                    <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">{s.body}</p>
                   </div>
                 </li>
               ))}
@@ -213,20 +248,23 @@ export default function HelpModal({ onClose }) {
           )}
 
           {tab === 'features' && (
-            <div className="help__features">
+            <div className="grid gap-3 sm:grid-cols-2">
               {FEATURES.map((f) => (
-                <div key={f.title} className="feature-card">
-                  <div className="feature-card__title">
-                    {f.icon} {f.title}
+                <div
+                  key={f.title}
+                  className="rounded-xl bg-gray-50 p-4 dark:bg-navy-700"
+                >
+                  <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
+                    <span className="text-brand-500">{f.icon}</span> {f.title}
                   </div>
-                  <p className="feature-card__text">{f.body}</p>
+                  <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{f.body}</p>
                 </div>
               ))}
             </div>
           )}
 
           {tab === 'faq' && (
-            <div className="help__faq">
+            <div className="flex flex-col">
               {FAQS.map((f) => (
                 <FaqItem key={f.q} q={f.q} a={f.a} />
               ))}
