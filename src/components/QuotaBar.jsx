@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, KeyRound } from 'lucide-react'
 import { cn } from '../lib/cn'
+import { getModelConfig, MODEL_CONFIG_EVENT } from '../lib/modelConfig'
+import { getUsageToday } from '../lib/tagger'
 
 // ---------------- Provider brand icons (inline SVG) ----------------
 const GeminiIcon = () => (
@@ -47,12 +49,20 @@ const GemmaIcon = () => (
   </svg>
 )
 
-const MODEL_ICONS = {
+// Map by provider string (spec), with a per-id override so Gemma keeps its own
+// badge even though its provider is "openrouter".
+const PROVIDER_ICONS = {
   gemini: GeminiIcon,
   openrouter: OpenRouterIcon,
   groq: GroqIcon,
-  hf: HuggingFaceIcon,
+  huggingface: HuggingFaceIcon,
+}
+const ID_ICONS = {
   gemma: GemmaIcon,
+}
+
+export function ModelIconFor(model) {
+  return ID_ICONS[model.id] || PROVIDER_ICONS[model.provider] || null
 }
 
 // Bar color by remaining fraction (or red when exhausted).
@@ -64,13 +74,15 @@ function barColor(remaining, quota, exhausted) {
   return '#10b981'
 }
 
-export default function QuotaBar({ getStats }) {
-  const [stats, setStats] = useState(() => (getStats ? getStats() : null))
+export default function QuotaBar() {
+  const [models, setModels] = useState(() => getModelConfig())
+  const [usage, setUsage] = useState(() => getUsageToday())
   const [activeModel, setActiveModel] = useState(null)
 
   const refresh = useCallback(() => {
-    if (getStats) setStats(getStats())
-  }, [getStats])
+    setModels(getModelConfig())
+    setUsage(getUsageToday())
+  }, [])
 
   useEffect(() => {
     refresh()
@@ -78,63 +90,96 @@ export default function QuotaBar({ getStats }) {
     const onActive = (e) => setActiveModel(e.detail?.modelId ?? null)
     window.addEventListener('tagger:usage-update', onUpdate)
     window.addEventListener('tagger:model-active', onActive)
+    window.addEventListener(MODEL_CONFIG_EVENT, onUpdate)
     const iv = setInterval(refresh, 30000) // auto-refresh every 30s
     return () => {
       window.removeEventListener('tagger:usage-update', onUpdate)
       window.removeEventListener('tagger:model-active', onActive)
+      window.removeEventListener(MODEL_CONFIG_EVENT, onUpdate)
       clearInterval(iv)
     }
   }, [refresh])
 
-  if (!stats) return null
+  // Derive per-card view data from config + today's usage.
+  const cards = models.map((m) => {
+    const used = usage.used[m.id] || 0
+    const exhausted = !!usage.exhausted[m.id]
+    const hasKey = !!m.apiKey
+    const remaining = exhausted ? 0 : Math.max(0, m.quota - used)
+    const available = m.enabled && hasKey
+    return { ...m, used, exhausted, hasKey, remaining, available }
+  })
+
+  // Total tags remaining across enabled + keyed models (ignores disabled).
+  const totalRemaining = cards
+    .filter((c) => c.available)
+    .reduce((sum, c) => sum + c.remaining, 0)
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-navy-700 dark:shadow-card-dark">
       <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {stats.models.map((m) => {
+        {cards.map((m) => {
           const usedPct = m.quota ? Math.min(100, Math.round((m.used / m.quota) * 100)) : 0
           const color = barColor(m.remaining, m.quota, m.exhausted)
           const isActive = activeModel === m.id
-          const ModelIcon = MODEL_ICONS[m.id]
+          const Icon = ModelIconFor(m)
+          const dimmed = !m.enabled || !m.hasKey
           return (
             <div
               key={m.id}
               className={cn(
                 'relative flex flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 transition-all duration-200 dark:border-white/5 dark:bg-navy-900',
-                !m.available && 'opacity-50',
+                dimmed && 'opacity-40',
                 isActive && 'border-brand-500 ring-2 ring-brand-500/40',
               )}
               title={
-                m.available ? `${m.name}: ${m.used}/${m.quota} terpakai` : `${m.name}: tidak ada API key`
+                !m.enabled
+                  ? `${m.name}: disabled`
+                  : !m.hasKey
+                    ? `${m.name}: tidak ada API key`
+                    : `${m.name}: ${m.used}/${m.quota} terpakai`
               }
             >
               {isActive && (
                 <span className="absolute right-2.5 top-2.5 h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
               )}
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1.5 truncate font-semibold',
-                    !m.available && 'text-gray-400 line-through',
-                  )}
-                >
-                  {ModelIcon ? (
-                    <span className={cn('shrink-0', !m.available && 'opacity-50')}>
-                      <ModelIcon />
-                    </span>
-                  ) : !m.available ? (
-                    <KeyRound size={11} />
-                  ) : null}
-                  {m.short}
-                </span>
-                <span
-                  className={cn(
-                    'shrink-0 tabular-nums',
-                    m.exhausted ? 'text-red-500' : 'text-gray-400',
-                  )}
-                >
-                  {!m.available ? 'no key' : m.exhausted ? 'exhausted' : `${m.used} / ${m.quota}`}
-                </span>
+              <div className="flex items-start justify-between gap-2 text-xs">
+                <div className="min-w-0">
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 truncate font-semibold',
+                      dimmed && 'text-gray-400',
+                    )}
+                  >
+                    {Icon ? (
+                      <span className={cn('shrink-0', dimmed && 'opacity-60')}>
+                        <Icon />
+                      </span>
+                    ) : !m.hasKey ? (
+                      <KeyRound size={11} />
+                    ) : null}
+                    {m.name}
+                  </span>
+                  <span className="block truncate font-mono text-[10px] opacity-60">{m.modelId}</span>
+                </div>
+                {!m.enabled ? (
+                  <span className="shrink-0 rounded bg-gray-400/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
+                    Disabled
+                  </span>
+                ) : !m.hasKey ? (
+                  <span className="shrink-0 rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
+                    No Key
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      'shrink-0 tabular-nums',
+                      m.exhausted ? 'text-red-500' : 'text-gray-400',
+                    )}
+                  >
+                    {m.exhausted ? 'exhausted' : `${m.used} / ${m.quota}`}
+                  </span>
+                )}
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-navy-600">
                 <div
@@ -153,7 +198,7 @@ export default function QuotaBar({ getStats }) {
       </div>
 
       <div className="flex items-center gap-2 whitespace-nowrap text-sm">
-        <span className="font-bold text-brand-500">~{stats.totalRemaining}</span>
+        <span className="font-bold text-brand-500">~{totalRemaining}</span>
         <span className="text-gray-400">tag tersisa hari ini</span>
         <button
           type="button"

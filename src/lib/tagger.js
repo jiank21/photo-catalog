@@ -1,24 +1,19 @@
 // ============================================================
 // tagger.js — Multi-model AI auto-tagging, all from the browser.
 //
-// Fallback chain (in order, all CORS-friendly from the browser):
-//   1. Gemini           — auto-detects an available model
-//   2. OpenRouter Auto Free (openrouter/free)
-//   3. Groq             — meta-llama/llama-4-scout-17b-16e-instruct (skip if no key)
-//   4. HuggingFace BLIP — Salesforce/blip-image-captioning-large (skip if no key)
-//   5. Gemma 4 31B      — google/gemma-4-31b-it:free (explicit fallback)
+// The fallback chain is no longer hardcoded here: it comes from
+// modelConfig.js (Settings → AI Models). getEnabledModels() is read
+// fresh on every tagImage() call, so changes to model id, API key,
+// quota, order, or enabled state take effect immediately.
 //
-// On rate-limit (429) we mark that provider exhausted and fall through.
-// When every key-holding provider is exhausted we throw
-// RateLimitExhaustedError so the caller can mark the photo "pending".
+// On rate-limit (429) we mark that provider exhausted (persisted for
+// today) and fall through. When every key-holding provider is exhausted
+// we throw RateLimitExhaustedError so the caller can mark the photo
+// "pending".
 // ============================================================
 
 import { addNotification } from './notifications'
-
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY
-const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
-const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY
-const HF_KEY = import.meta.env.VITE_HF_API_KEY
+import { getEnabledModels } from './modelConfig'
 
 export class RateLimitExhaustedError extends Error {
   constructor(message = 'Semua model sudah mencapai limit hari ini.') {
@@ -27,116 +22,16 @@ export class RateLimitExhaustedError extends Error {
   }
 }
 
-// ---------------- Model / provider chain ----------------
-// provider: 'gemini' | 'openrouter' | 'groq' | 'hf'
-// For gemini the actual model is resolved at call time (auto-detect).
-// All providers below are CORS-friendly from the browser.
-export const MODELS = [
-  {
-    id: 'gemini',
-    label: 'Gemini (auto)',
-    provider: 'gemini',
-    dailyLimit: 1500,
-  },
-  {
-    id: 'openrouter/free',
-    label: 'OpenRouter Auto Free',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-  {
-    id: 'groq',
-    label: 'Groq (Llama 4 Scout)',
-    provider: 'groq',
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    dailyLimit: 100,
-  },
-  {
-    id: 'hf',
-    label: 'HF BLIP',
-    provider: 'hf',
-    model: 'Salesforce/blip-image-captioning-large',
-    dailyLimit: 300,
-  },
-  {
-    id: 'google/gemma-4-31b-it:free',
-    label: 'Gemma 4 31B (vision)',
-    provider: 'openrouter',
-    dailyLimit: 200,
-  },
-]
-
-function modelHasKey(model) {
-  if (model.provider === 'gemini') return !!GEMINI_KEY
-  if (model.provider === 'groq') return !!GROQ_KEY
-  if (model.provider === 'hf') return !!HF_KEY
-  return !!OPENROUTER_KEY
-}
-
-// ---------------- Per-session usage tracking ----------------
-const usage = {}
-for (const m of MODELS) usage[m.id] = { used: 0, exhausted: false }
-
-export function getUsage() {
-  return MODELS.map((m) => ({
-    id: m.id,
-    label: m.label,
-    used: usage[m.id].used,
-    limit: m.dailyLimit,
-    exhausted: usage[m.id].exhausted,
-    available: modelHasKey(m),
-  }))
-}
-
-export function resetUsage() {
-  for (const m of MODELS) usage[m.id] = { used: 0, exhausted: false }
-}
-
-/** True when every provider that actually has an API key is rate-limited. */
-export function allExhausted() {
-  const usable = MODELS.filter(modelHasKey)
-  if (!usable.length) return false
-  return usable.every((m) => usage[m.id].exhausted)
-}
-
 // ============================================================
 // Persisted daily usage tracking (localStorage)
-//   USAGE_KEY:   { "YYYY-MM-DD": { gemini, openrouter, groq, hf, gemma } }
-//   EXHAUST_KEY: { "YYYY-MM-DD": { gemini: true, ... } }
+//   USAGE_KEY:   { "YYYY-MM-DD": { <modelId>: count } }
+//   EXHAUST_KEY: { "YYYY-MM-DD": { <modelId>: true } }
 //   Writes keep only today's entry, so a new day auto-resets.
+//   Keys are the modelConfig ids (gemini, openrouter, groq, hf, gemma…).
 // ============================================================
 
 const USAGE_KEY = 'photo-catalog-model-usage'
 const EXHAUST_KEY = 'photo-catalog-model-exhausted'
-
-// Simplified id → display + quota + availability.
-const USAGE_MODELS = [
-  { id: 'gemini', name: 'Gemini 3 Flash', short: 'Gemini', quota: 500, hasKey: () => !!GEMINI_KEY },
-  { id: 'openrouter', name: 'OpenRouter Free', short: 'OpenRouter', quota: 200, hasKey: () => !!OPENROUTER_KEY },
-  { id: 'groq', name: 'Groq Llama 4 Scout', short: 'Groq', quota: 100, hasKey: () => !!GROQ_KEY },
-  { id: 'hf', name: 'HuggingFace BLIP', short: 'HF BLIP', quota: 300, hasKey: () => !!HF_KEY },
-  { id: 'gemma', name: 'Gemma 4 31B', short: 'Gemma', quota: 200, hasKey: () => !!OPENROUTER_KEY },
-]
-
-// Map a chain model.id (or already-simplified id) to a simplified usage id.
-function normUsageId(modelId) {
-  switch (modelId) {
-    case 'gemini':
-      return 'gemini'
-    case 'openrouter':
-    case 'openrouter/free':
-      return 'openrouter'
-    case 'groq':
-      return 'groq'
-    case 'hf':
-      return 'hf'
-    case 'gemma':
-    case 'google/gemma-4-31b-it:free':
-      return 'gemma'
-    default:
-      return null
-  }
-}
 
 function todayStr() {
   const d = new Date()
@@ -167,15 +62,6 @@ function dispatchUsageUpdate() {
   }
 }
 
-// Friendly names for status lines / active-model events.
-const STATUS_NAMES = {
-  gemini: 'Gemini',
-  openrouter: 'OpenRouter',
-  groq: 'Groq',
-  hf: 'HF BLIP',
-  gemma: 'Gemma',
-}
-
 function dispatchModelActive(modelId) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('tagger:model-active', { detail: { modelId } }))
@@ -188,70 +74,47 @@ function dispatchTagStatus(text) {
   }
 }
 
-/** Increment today's successful-tag counter for a model. */
+/** Increment today's successful-tag counter for a model id. */
 export function incrementUsage(modelId) {
-  const id = normUsageId(modelId)
-  if (!id) return
+  if (!modelId) return
   const date = todayStr()
-  const day = readStore(USAGE_KEY)[date] || {
-    gemini: 0,
-    openrouter: 0,
-    groq: 0,
-    hf: 0,
-    gemma: 0,
-  }
-  day[id] = (day[id] || 0) + 1
+  const day = readStore(USAGE_KEY)[date] || {}
+  day[modelId] = (day[modelId] || 0) + 1
   writeStore(USAGE_KEY, { [date]: day }) // drop other days → daily reset
   dispatchUsageUpdate()
 }
 
-/** Mark a model as rate-limited (exhausted) for today. */
+/** Mark a model id as rate-limited (exhausted) for today. */
 export function markExhausted(modelId) {
-  const id = normUsageId(modelId)
-  if (!id) return
+  if (!modelId) return
   const date = todayStr()
   const day = readStore(EXHAUST_KEY)[date] || {}
-  day[id] = true
+  day[modelId] = true
   writeStore(EXHAUST_KEY, { [date]: day })
   dispatchUsageUpdate()
 }
 
-/** Snapshot of today's quota usage for the UI. */
-export function getUsageStats() {
+/** Clear today's exhausted flags so a new scan retries every provider. */
+export function resetUsage() {
+  writeStore(EXHAUST_KEY, {})
+  dispatchUsageUpdate()
+}
+
+/** Today's raw usage + exhausted maps keyed by model id (for the QuotaBar). */
+export function getUsageToday() {
   const date = todayStr()
-  const used = readStore(USAGE_KEY)[date] || {}
-  const exh = readStore(EXHAUST_KEY)[date] || {}
-  let totalRemaining = 0
-  let totalUsedToday = 0
-
-  const models = USAGE_MODELS.map((m) => {
-    const u = used[m.id] || 0
-    const exhausted = !!exh[m.id]
-    const available = m.hasKey()
-    const remaining = exhausted ? 0 : Math.max(0, m.quota - u)
-    totalUsedToday += u
-    if (available) totalRemaining += remaining
-    return {
-      name: m.name,
-      short: m.short,
-      id: m.id,
-      quota: m.quota,
-      used: u,
-      remaining,
-      exhausted,
-      available,
-    }
-  })
-
-  return { date, models, totalRemaining, totalUsedToday }
+  return {
+    date,
+    used: readStore(USAGE_KEY)[date] || {},
+    exhausted: readStore(EXHAUST_KEY)[date] || {},
+  }
 }
 
 // ============================================================
-// Gemini model auto-detection
+// Gemini model auto-detection (per API key)
 // ============================================================
 
-// Tried in order when auto-detection returns nothing. Newest first
-// (gemini-3.5-flash is the latest per Google AI Studio docs).
+// Tried in order when auto-detection returns nothing. Newest first.
 const GEMINI_FALLBACK_MODELS = [
   'gemini-3.5-flash',
   'gemini-2.0-flash',
@@ -261,21 +124,19 @@ const GEMINI_FALLBACK_MODELS = [
   'gemini-1.0-pro-vision',
 ]
 
-let geminiAvailableModels = []
-let geminiInitPromise = null
+// Cache detected models per API key (key may change at runtime via Settings).
+const geminiDetectCache = {}
 
 /**
- * Fetch the list of Gemini models that support generateContent.
+ * Fetch the list of Gemini models that support generateContent for `apiKey`.
  * Returns an array of bare model names (no "models/" prefix).
  */
-export async function getAvailableGeminiModels() {
-  if (!GEMINI_KEY) {
-    console.warn('[tagger] VITE_GEMINI_API_KEY belum di-set; lewati deteksi model Gemini')
-    return []
-  }
+export async function getAvailableGeminiModels(apiKey) {
+  if (!apiKey) return []
+  if (geminiDetectCache[apiKey]) return geminiDetectCache[apiKey]
   try {
     const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
-      headers: { 'x-goog-api-key': GEMINI_KEY },
+      headers: { 'x-goog-api-key': apiKey },
     })
     if (!res.ok) {
       console.warn(`[tagger] gagal ambil daftar model Gemini: ${res.status}`)
@@ -290,6 +151,7 @@ export async function getAvailableGeminiModels() {
       )
       .map((m) => String(m.name || '').replace(/^models\//, ''))
       .filter(Boolean)
+    geminiDetectCache[apiKey] = models
     console.log('[tagger] Gemini available models:', models)
     return models
   } catch (e) {
@@ -297,18 +159,6 @@ export async function getAvailableGeminiModels() {
     return []
   }
 }
-
-// Kick off detection once at module load (non-blocking, lazy-awaited).
-function ensureGeminiInit() {
-  if (!geminiInitPromise) {
-    geminiInitPromise = getAvailableGeminiModels().then((m) => {
-      geminiAvailableModels = m
-      return m
-    })
-  }
-  return geminiInitPromise
-}
-ensureGeminiInit()
 
 // Score a detected model: prefer flash/pro, newest version first.
 function rankGeminiModel(name) {
@@ -323,17 +173,24 @@ function rankGeminiModel(name) {
   return score
 }
 
-// Ordered list of Gemini model names to try.
-function geminiCandidateModels() {
-  if (geminiAvailableModels.length) {
-    const ranked = geminiAvailableModels
+/**
+ * Ordered list of Gemini model names to try. The config's modelId is tried
+ * first, then auto-detected/ranked models, then the static fallbacks.
+ */
+function geminiCandidateModels(configModelId, detected) {
+  const out = []
+  if (configModelId) out.push(configModelId)
+  if (detected && detected.length) {
+    const ranked = detected
       .map((name) => ({ name, score: rankGeminiModel(name) }))
       .filter((x) => x.score >= 0)
       .sort((a, b) => b.score - a.score)
       .map((x) => x.name)
-    if (ranked.length) return ranked
+    out.push(...ranked)
   }
-  return GEMINI_FALLBACK_MODELS
+  out.push(...GEMINI_FALLBACK_MODELS)
+  // De-dupe while preserving order.
+  return [...new Set(out.filter(Boolean))]
 }
 
 // ============================================================
@@ -578,28 +435,34 @@ function parseModelJson(text, modelName = 'model') {
 }
 
 // ============================================================
-// Provider callers — each returns { text, modelName }
+// Provider callers — each takes a model config object + image, and
+// returns { text, modelName }. They throw err.skip when no key, and
+// err.rateLimited on 429.
 // ============================================================
 
-async function tagWithGemini(base64, mimeType, prompt = TAG_PROMPT) {
-  if (!GEMINI_KEY) {
-    const e = new Error('VITE_GEMINI_API_KEY belum di-set')
+function buildEndpoint(endpoint, modelId) {
+  return String(endpoint || '').replace('{modelId}', modelId || '')
+}
+
+async function tagWithGemini(cfg, base64, mimeType, prompt = TAG_PROMPT) {
+  if (!cfg.apiKey) {
+    const e = new Error('Gemini: no API key')
     e.skip = true
     throw e
   }
-  await ensureGeminiInit()
-  const candidates = geminiCandidateModels()
+  const detected = await getAvailableGeminiModels(cfg.apiKey)
+  const candidates = geminiCandidateModels(cfg.modelId, detected)
   let lastErr = null
 
   for (const modelName of candidates) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`
+    const url = buildEndpoint(cfg.endpoint, modelName)
     let res
     try {
       res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_KEY,
+          'x-goog-api-key': cfg.apiKey,
         },
         body: JSON.stringify({
           contents: [
@@ -647,22 +510,22 @@ async function tagWithGemini(base64, mimeType, prompt = TAG_PROMPT) {
   throw lastErr || new Error('Semua model Gemini gagal (404/error)')
 }
 
-async function tagWithOpenRouter(model, base64, mimeType, prompt = TAG_PROMPT) {
-  if (!OPENROUTER_KEY) {
-    const e = new Error('VITE_OPENROUTER_API_KEY belum di-set')
+async function tagWithOpenRouter(cfg, base64, mimeType, prompt = TAG_PROMPT) {
+  if (!cfg.apiKey) {
+    const e = new Error('OpenRouter: no API key')
     e.skip = true
     throw e
   }
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const res = await fetch(cfg.endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENROUTER_KEY}`,
+      Authorization: `Bearer ${cfg.apiKey}`,
       'HTTP-Referer': window.location.origin,
       'X-Title': 'Photo Catalog',
     },
     body: JSON.stringify({
-      model: model.id,
+      model: cfg.modelId,
       temperature: 0.2,
       max_tokens: 1024,
       messages: [
@@ -691,24 +554,24 @@ async function tagWithOpenRouter(model, base64, mimeType, prompt = TAG_PROMPT) {
     // error and skip to the next model — do NOT mark the provider exhausted.
     throw new Error(data.error.message || 'openrouter error')
   }
-  return { text: data?.choices?.[0]?.message?.content || '', modelName: model.id }
+  return { text: data?.choices?.[0]?.message?.content || '', modelName: cfg.modelId }
 }
 
 // Groq — OpenAI-compatible chat completions, CORS-friendly from the browser.
-async function tagWithGroq(model, base64, mimeType, prompt = TAG_PROMPT) {
-  if (!GROQ_KEY) {
-    const e = new Error('VITE_GROQ_API_KEY belum di-set')
+async function tagWithGroq(cfg, base64, mimeType, prompt = TAG_PROMPT) {
+  if (!cfg.apiKey) {
+    const e = new Error('Groq: no API key')
     e.skip = true
     throw e
   }
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const res = await fetch(cfg.endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${GROQ_KEY}`,
+      Authorization: `Bearer ${cfg.apiKey}`,
     },
     body: JSON.stringify({
-      model: model.model,
+      model: cfg.modelId,
       temperature: 0.2,
       max_tokens: 1024,
       messages: [
@@ -736,22 +599,22 @@ async function tagWithGroq(model, base64, mimeType, prompt = TAG_PROMPT) {
     // Body-level error on an HTTP 200 → normal error, skip to next model.
     throw new Error(String(data.error.message || data.error || 'groq error'))
   }
-  return { text: data?.choices?.[0]?.message?.content || '', modelName: model.model }
+  return { text: data?.choices?.[0]?.message?.content || '', modelName: cfg.modelId }
 }
 
 // HuggingFace Inference API — BLIP image captioning. Returns a caption that
 // we turn into a description + simple tags. CORS-friendly from the browser.
-async function tagWithHuggingFace(model, base64, mimeType, _prompt = TAG_PROMPT) {
-  if (!HF_KEY) {
-    const e = new Error('VITE_HF_API_KEY belum di-set')
+async function tagWithHuggingFace(cfg, base64, mimeType, _prompt = TAG_PROMPT) {
+  if (!cfg.apiKey) {
+    const e = new Error('HuggingFace: no API key')
     e.skip = true
     throw e
   }
-  const res = await fetch(`https://api-inference.huggingface.co/models/${model.model}`, {
+  const res = await fetch(buildEndpoint(cfg.endpoint, cfg.modelId), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${HF_KEY}`,
+      Authorization: `Bearer ${cfg.apiKey}`,
     },
     // BLIP expects the raw base64 image string as `inputs`, not a chat body.
     body: JSON.stringify({ inputs: base64 }),
@@ -779,7 +642,80 @@ async function tagWithHuggingFace(model, base64, mimeType, _prompt = TAG_PROMPT)
     .split(/[^a-z0-9]+/i)
     .filter(Boolean)
   const text = JSON.stringify({ tags, description: caption, ocr_text: null })
-  return { text, modelName: model.model }
+  return { text, modelName: cfg.modelId }
+}
+
+function callProvider(model, base64, mimeType, prompt) {
+  if (model.provider === 'gemini') return tagWithGemini(model, base64, mimeType, prompt)
+  if (model.provider === 'groq') return tagWithGroq(model, base64, mimeType, prompt)
+  if (model.provider === 'huggingface') return tagWithHuggingFace(model, base64, mimeType, prompt)
+  // 'openrouter' (and anything else OpenAI-compatible) → OpenRouter caller.
+  return tagWithOpenRouter(model, base64, mimeType, prompt)
+}
+
+// ============================================================
+// Test a single model (text-only) from Settings → AI Models.
+// Returns { ok: boolean, message: string }.
+// ============================================================
+
+export async function testModel(cfg) {
+  if (!cfg.apiKey) return { ok: false, message: 'No API key' }
+  const PROMPT = 'Describe this: blue sky'
+  try {
+    if (cfg.provider === 'gemini') {
+      const url = buildEndpoint(cfg.endpoint, cfg.modelId)
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.apiKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: PROMPT }] }],
+          generationConfig: { maxOutputTokens: 32 },
+        }),
+      })
+      if (res.status === 429) return { ok: false, message: 'Rate limited (429)' }
+      if (!res.ok) return { ok: false, message: `HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 120)}` }
+      const data = await res.json()
+      if (data?.error) return { ok: false, message: data.error.message || 'error' }
+      return { ok: true, message: 'Working' }
+    }
+
+    if (cfg.provider === 'huggingface') {
+      // BLIP is image-only; a HEAD-ish reachability check via the model page.
+      const res = await fetch(buildEndpoint(cfg.endpoint, cfg.modelId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+        body: JSON.stringify({ inputs: PROMPT }),
+      })
+      if (res.status === 401 || res.status === 403) return { ok: false, message: `Auth failed (${res.status})` }
+      if (res.status === 429) return { ok: false, message: 'Rate limited (429)' }
+      // 200 OK or 503 (model loading) both mean the key + endpoint are valid.
+      if (res.ok || res.status === 503) return { ok: true, message: res.status === 503 ? 'Model loading (key OK)' : 'Working' }
+      return { ok: false, message: `HTTP ${res.status}` }
+    }
+
+    // OpenAI-compatible (openrouter / groq) — text-only chat.
+    const res = await fetch(cfg.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.apiKey}`,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : '',
+        'X-Title': 'Photo Catalog',
+      },
+      body: JSON.stringify({
+        model: cfg.modelId,
+        max_tokens: 32,
+        messages: [{ role: 'user', content: PROMPT }],
+      }),
+    })
+    if (res.status === 429) return { ok: false, message: 'Rate limited (429)' }
+    if (!res.ok) return { ok: false, message: `HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 120)}` }
+    const data = await res.json()
+    if (data?.error) return { ok: false, message: String(data.error.message || data.error) }
+    return { ok: true, message: 'Working' }
+  } catch (e) {
+    return { ok: false, message: e.message || 'Network error' }
+  }
 }
 
 // ============================================================
@@ -788,26 +724,26 @@ async function tagWithHuggingFace(model, base64, mimeType, _prompt = TAG_PROMPT)
 
 /**
  * Tag one image. base64 = raw base64 (no data: prefix).
+ * Reads the enabled-model chain fresh from modelConfig each call.
  * Returns { tags, description, ocr_text, model, modelLabel } on success.
  * Throws RateLimitExhaustedError when every key-holding provider is limited.
  */
-async function callProvider(model, base64, mimeType, prompt) {
-  if (model.provider === 'gemini') return tagWithGemini(base64, mimeType, prompt)
-  if (model.provider === 'groq') return tagWithGroq(model, base64, mimeType, prompt)
-  if (model.provider === 'hf') return tagWithHuggingFace(model, base64, mimeType, prompt)
-  return tagWithOpenRouter(model, base64, mimeType, prompt)
-}
-
 export async function tagImage(base64, mimeType = 'image/jpeg') {
+  const models = getEnabledModels()
+  const { exhausted } = getUsageToday() // today's persisted exhausted flags
+  const withKey = models.filter((m) => m.apiKey)
   let tried = 0
-  try {
-    for (const model of MODELS) {
-      if (usage[model.id].exhausted) continue
-      if (!modelHasKey(model)) continue
 
-      const simpleId = normUsageId(model.id)
-      const name = STATUS_NAMES[simpleId] || model.label
-      dispatchModelActive(simpleId)
+  try {
+    for (const model of models) {
+      if (exhausted[model.id]) continue
+      if (!model.apiKey) {
+        console.log(`[tagger] ${model.name} skipped: no API key`)
+        continue
+      }
+
+      const name = model.name
+      dispatchModelActive(model.id)
       dispatchTagStatus(tried === 0 ? `🤖 Menganalisis dengan ${name}` : `🔄 Fallback ke ${name}`)
       tried++
 
@@ -815,53 +751,53 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
         const out = await callProvider(model, base64, mimeType, TAG_PROMPT)
         if (!out) continue // provider self-skipped (e.g. no key)
         const { text, modelName } = out
-        console.log(`[tagger] ${model.label} raw response:`, text)
+        console.log(`[tagger] ${name} raw response:`, text)
 
-        const parsed = parseModelJson(text, modelName || model.label)
+        const parsed = parseModelJson(text, modelName || name)
         if (!parsed || !parsed.tags.length) {
-          console.warn(`[tagger] ${model.label} returned no usable tags, trying next`)
+          console.warn(`[tagger] ${name} returned no usable tags, trying next`)
           continue
         }
         if (parsed.fallback) {
-          console.info(`[tagger] ${model.label} output not valid JSON; used text fallback`, parsed.tags)
+          console.info(`[tagger] ${name} output not valid JSON; used text fallback`, parsed.tags)
         }
 
-        // Minimum-tag enforcement: one retry on the SAME model when < 8 tags.
+        // Minimum-tag enforcement: one retry on the SAME model when < 16 tags.
         let finalTags = parsed.tags
         if (finalTags.length < 16) {
           const retryPrompt = `The previous analysis only returned ${finalTags.length} tags which is insufficient. You MUST return minimum 20 tags (10 English + 10 Indonesian equivalents). Look at this image again more carefully and pair EVERY concept with both its English AND Bahasa Indonesia word as separate tags (e.g. "spider" AND "laba-laba", "red" AND "merah"). Add more specific observations about: colors, textures, lighting, composition, background elements, foreground details, image style, technical qualities of the photo — each in EN+ID pairs. Previous tags were: ${finalTags.join(', ')}. Now return a complete JSON with at least 20 tags total.`
           try {
             dispatchTagStatus(`🤖 Menambah detail dengan ${name}`)
             const out2 = await callProvider(model, base64, mimeType, retryPrompt)
-            const parsed2 = parseModelJson(out2.text, modelName || model.label)
+            const parsed2 = parseModelJson(out2.text, modelName || name)
             const merged = normalizeTags([...finalTags, ...((parsed2 && parsed2.tags) || [])])
             console.log(
-              `[tagger] ${model.label} retry karena hanya ${finalTags.length} tags, hasil retry: ${merged.length} tags`,
+              `[tagger] ${name} retry karena hanya ${finalTags.length} tags, hasil retry: ${merged.length} tags`,
             )
             finalTags = merged
           } catch (e) {
-            console.warn(`[tagger] ${model.label} retry gagal:`, e.message)
+            console.warn(`[tagger] ${name} retry gagal:`, e.message)
           }
         }
 
-        usage[model.id].used += 1
         incrementUsage(model.id) // persisted daily counter
-        return { ...parsed, tags: finalTags, model: modelName || model.id, modelLabel: model.label }
+        return { ...parsed, tags: finalTags, model: modelName || model.id, modelLabel: name }
       } catch (err) {
         if (err.skip) continue
         if (err.rateLimited) {
-          usage[model.id].exhausted = true
+          exhausted[model.id] = true
           markExhausted(model.id) // persisted exhausted flag for today
           addNotification('rate_limit', `Model ${name} mencapai limit harian`)
-          console.warn(`[tagger] ${model.label} rate limited, falling through`)
+          console.warn(`[tagger] ${name} rate limited, falling through`)
           continue
         }
-        console.warn(`[tagger] ${model.label} error:`, err.message)
+        console.warn(`[tagger] ${name} error:`, err.message)
         continue
       }
     }
 
-    if (allExhausted()) {
+    // Every key-holding provider exhausted → signal "pending" to the caller.
+    if (withKey.length && withKey.every((m) => exhausted[m.id])) {
       throw new RateLimitExhaustedError()
     }
     throw new Error('Tidak ada model yang berhasil memberi tag.')

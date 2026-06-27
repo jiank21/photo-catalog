@@ -17,7 +17,6 @@ import {
   deletePhotos,
   hasSupabaseConfig,
 } from './lib/supabase'
-import { getUsageStats } from './lib/tagger'
 import { cn } from './lib/cn'
 import Sidebar from './components/Sidebar'
 import Navbar from './components/Navbar'
@@ -29,6 +28,7 @@ import PhotoModal from './components/PhotoModal'
 import StatsBar from './components/StatsBar'
 import SettingsModal from './components/SettingsModal'
 import HelpModal from './components/HelpModal'
+import { ToastHost } from './components/Toast'
 
 const PAGE_SIZE = 60
 const VIEW_KEY = 'photo-catalog-view'
@@ -331,7 +331,7 @@ export default function App({ onLogout }) {
 
             <Scanner ref={scannerRef} sections={sections} onScanDone={handleScanDone} />
 
-            <QuotaBar getStats={getUsageStats} />
+            <QuotaBar />
 
             <StatsBar stats={stats} />
 
@@ -437,6 +437,8 @@ export default function App({ onLogout }) {
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} onLogout={onLogout} />}
 
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+
+      <ToastHost />
     </div>
   )
 }

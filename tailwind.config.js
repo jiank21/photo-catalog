@@ -67,11 +67,16 @@ export default {
           from: { opacity: '0', transform: 'translateY(6px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
+        'toast-in': {
+          from: { opacity: '0', transform: 'translateX(120%)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
+        },
       },
       animation: {
         shimmer: 'shimmer 2s linear infinite',
         shake: 'shake 0.4s ease',
         'fade-in': 'fade-in 0.3s ease',
+        'toast-in': 'toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
       },
     },
   },

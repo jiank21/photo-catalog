@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, ShieldCheck, LogOut } from 'lucide-react'
 import { changePin, logout } from '../lib/auth'
 import { cn } from '../lib/cn'
+import ModelSettings from './ModelSettings'
 
 const onlyDigits = (v) => v.replace(/\D/g, '').slice(0, 6)
 
@@ -11,6 +12,7 @@ const inputClass =
 const TABS = [
   { id: 'security', label: 'Keamanan' },
   { id: 'session', label: 'Session' },
+  { id: 'models', label: 'AI Models' },
 ]
 
 export default function SettingsModal({ onClose, onLogout }) {
@@ -58,7 +60,10 @@ export default function SettingsModal({ onClose, onLogout }) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[440px] rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-navy-800"
+        className={cn(
+          'relative max-h-[90vh] w-full overflow-y-auto rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-navy-800',
+          tab === 'models' ? 'max-w-[640px]' : 'max-w-[440px]',
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -144,6 +149,8 @@ export default function SettingsModal({ onClose, onLogout }) {
             )}
           </div>
         )}
+
+        {tab === 'models' && <ModelSettings />}
 
         {tab === 'session' && (
           <div className="mt-5">
