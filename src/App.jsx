@@ -42,7 +42,7 @@ const VIEW_OPTIONS = [
 function ViewToggle({ view, onChange }) {
   return (
     <div
-      className="inline-flex shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-navy-700 dark:bg-navy-800"
+      className="inline-flex shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-navy-700"
       role="group"
       aria-label="Tampilan"
     >
@@ -77,7 +77,7 @@ function SelectAllCheckbox({ checked, indeterminate, onChange }) {
   }, [indeterminate])
   return (
     <label
-      className="flex cursor-pointer select-none items-center gap-2 border-r border-gray-200 pr-3 text-sm text-gray-500 dark:border-navy-600 dark:text-gray-300"
+      className="flex cursor-pointer select-none items-center gap-2 border-r border-gray-200 pr-3 text-sm text-gray-500 dark:border-white/10 dark:text-gray-300"
       title="Pilih / batalkan semua yang tampil"
     >
       <input
@@ -291,7 +291,7 @@ export default function App({ onLogout }) {
     : null
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-800 dark:bg-navy-900 dark:text-white">
+    <div className="flex h-screen overflow-hidden bg-[#F4F7FE] text-gray-900 dark:bg-navy-900 dark:text-white">
       <Sidebar
         sections={sections}
         activeSection={activeSection}
@@ -351,7 +351,7 @@ export default function App({ onLogout }) {
                   'inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-200',
                   selectMode
                     ? 'border-transparent bg-brand-500 text-white shadow-md'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300 dark:border-navy-700 dark:bg-navy-800 dark:text-gray-300 dark:hover:border-brand-500/50',
+                    : 'border-gray-200 bg-white text-gray-600 shadow-sm hover:border-brand-300 dark:border-white/10 dark:bg-navy-700 dark:text-white/70 dark:hover:bg-navy-600',
                 )}
                 onClick={toggleSelectMode}
                 title="Pilih beberapa foto untuk aksi massal"
@@ -396,7 +396,7 @@ export default function App({ onLogout }) {
 
       {/* Floating select toolbar */}
       {selectMode && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white/90 px-6 py-3 shadow-2xl backdrop-blur-md dark:border-navy-600 dark:bg-navy-800/90">
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white/90 px-6 py-3 shadow-2xl backdrop-blur-md dark:border-white/10 dark:bg-navy-800/90">
           <SelectAllCheckbox checked={allSelected} indeterminate={someSelected} onChange={toggleSelectAll} />
           <span className="text-sm font-semibold tabular-nums">{selectedIds.size} foto dipilih</span>
           <button

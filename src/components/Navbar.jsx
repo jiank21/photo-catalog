@@ -109,8 +109,8 @@ function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 animate-fade-in overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-navy-700 dark:bg-navy-800">
-          <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-navy-700">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 animate-fade-in overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-navy-800">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-white/10">
             <div className="flex items-center gap-2">
               <span className="font-semibold">Notifikasi</span>
               {unread > 0 && (
@@ -193,7 +193,7 @@ export default function Navbar({
   if (folderName) crumbs.push(folderName)
 
   return (
-    <header className="sticky top-0 z-20 flex h-20 shrink-0 items-center justify-between gap-4 border-b border-gray-200 bg-white/80 px-6 backdrop-blur-md dark:border-navy-700 dark:bg-navy-800/50">
+    <header className="sticky top-0 z-20 flex h-20 shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white/95 px-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-navy-800/95">
       {/* Breadcrumb */}
       <nav className="flex min-w-0 items-center gap-1.5 text-sm text-gray-400" aria-label="Breadcrumb">
         {crumbs.map((c, i) => (
@@ -224,7 +224,7 @@ export default function Navbar({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Cari cepat…"
-            className="w-44 rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-700 transition-all duration-200 focus:w-56 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-700 dark:bg-navy-900 dark:text-white"
+            className="w-44 rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-700 transition-all duration-200 focus:w-56 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-navy-900 dark:text-white"
           />
         </div>
 
@@ -245,10 +245,10 @@ export default function Navbar({
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-12 z-30 w-48 animate-fade-in overflow-hidden rounded-2xl border border-gray-100 bg-white p-2 shadow-card dark:border-navy-700 dark:bg-navy-800 dark:shadow-card-dark">
+            <div className="absolute right-0 top-12 z-30 w-48 animate-fade-in overflow-hidden rounded-2xl border border-gray-100 bg-white p-2 shadow-card dark:border-white/10 dark:bg-navy-800 dark:shadow-card-dark">
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700"
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-gray-600 transition hover:bg-gray-100 dark:text-white/70 dark:hover:bg-white/10"
                 onClick={() => {
                   setMenuOpen(false)
                   onOpenSettings?.()

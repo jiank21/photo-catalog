@@ -152,7 +152,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
       onClick={onClose}
     >
       <div
-        className="relative max-h-[90vh] w-full max-w-[900px] overflow-auto rounded-3xl border border-gray-100 bg-white shadow-2xl dark:border-navy-700 dark:bg-navy-800"
+        className="relative max-h-[90vh] w-full max-w-[900px] overflow-auto rounded-3xl border border-gray-100 bg-white shadow-2xl dark:border-white/10 dark:bg-navy-800"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -205,7 +205,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
                 </code>
                 <button
                   type="button"
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-brand-300 dark:border-navy-600 dark:text-gray-300"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 px-3 text-sm font-medium text-gray-600 transition hover:border-brand-300 dark:border-white/10 dark:text-white/70 dark:hover:bg-navy-700"
                   onClick={copyPath}
                 >
                   {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -222,7 +222,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
               <label className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-400">
                 <Info size={14} /> Info
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 rounded-xl bg-gray-50 p-3 dark:bg-navy-900/50">
               <Meta label="Ukuran">{formatBytes(photo.file_size)}</Meta>
               <Meta label="Resolusi">
                 {photo.width && photo.height ? `${photo.width}×${photo.height}` : '—'}
@@ -301,7 +301,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
                   disabled={saving}
-                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-600 dark:bg-navy-900 dark:text-white"
+                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-navy-900 dark:text-white"
                 />
                 <button
                   type="submit"

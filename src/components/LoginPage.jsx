@@ -39,7 +39,7 @@ export default function LoginPage({ onSuccess }) {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-5">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#F4F7FE] to-[#EEF2FF] p-5 dark:from-navy-900 dark:via-navy-800 dark:to-navy-900">
       {/* Glow effect (CSS only) */}
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-60 blur-3xl"
@@ -52,19 +52,19 @@ export default function LoginPage({ onSuccess }) {
 
       <div
         className={cn(
-          'relative w-full max-w-[420px] animate-fade-in rounded-3xl border border-navy-700 bg-navy-800/90 p-10 text-center backdrop-blur-xl',
+          'relative w-full max-w-[420px] animate-fade-in rounded-3xl border border-gray-100 bg-white p-10 text-center shadow-2xl dark:border-white/10 dark:bg-navy-800/95 dark:backdrop-blur-xl',
           shake && 'animate-shake',
         )}
       >
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-purple-500 text-white shadow-lg">
           <Camera size={34} />
         </div>
-        <h1 className="text-2xl font-bold text-white">Photo Catalog</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Photo Catalog</h1>
         <p className="mt-1 text-sm text-gray-400">Masukkan PIN untuk akses</p>
 
         <input
           ref={inputRef}
-          className="mx-auto mt-6 block h-14 w-48 rounded-xl border-2 border-navy-600 bg-navy-900 text-center text-2xl tracking-[0.5em] text-white transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+          className="mx-auto mt-6 block h-14 w-48 rounded-xl border-2 border-gray-200 bg-gray-50 text-center text-2xl tracking-[0.5em] text-gray-900 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-navy-900 dark:text-white"
           type="password"
           inputMode="numeric"
           value={pin}

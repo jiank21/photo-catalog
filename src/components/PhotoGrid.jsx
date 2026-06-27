@@ -51,7 +51,7 @@ function SelectBox({ selected }) {
         'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition',
         selected
           ? 'border-brand-500 bg-brand-500 text-white'
-          : 'border-gray-300 bg-white/80 text-transparent dark:border-navy-500 dark:bg-navy-700',
+          : 'border-gray-300 bg-white/80 text-transparent dark:border-white/30 dark:bg-navy-900',
       )}
     >
       {selected && <Check size={13} strokeWidth={3} />}
@@ -69,16 +69,20 @@ function findSectionForFolder(sections, folderPath) {
 const tagPill =
   'rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-medium text-brand-500 whitespace-nowrap'
 
-function PhotoCard({ photo, onActivate, selectMode, selected, large }) {
+// Card container: identical box model for every card so the grid stays uniform.
+const cardShell =
+  'group flex w-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 dark:bg-navy-700'
+
+function PhotoCard({ photo, onActivate, selectMode, selected, infoMinH }) {
   const tags = photo.tags || []
   return (
     <button
       type="button"
       className={cn(
-        'group flex flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 dark:bg-navy-800',
+        cardShell,
         selected
-          ? 'border-brand-500 ring-2 ring-brand-500'
-          : 'border-gray-100 hover:border-brand-300 hover:shadow-card dark:border-navy-700 dark:hover:border-brand-500/50 dark:hover:shadow-card-dark',
+          ? 'border-brand-500 ring-2 ring-brand-500 dark:border-brand-500'
+          : 'border-gray-200 hover:border-brand-300 hover:shadow-md dark:border-white/10 dark:hover:bg-navy-600',
       )}
       onClick={() => onActivate(photo)}
     >
@@ -87,7 +91,8 @@ function PhotoCard({ photo, onActivate, selectMode, selected, large }) {
           <SelectBox selected={selected} />
         </div>
       )}
-      <div className={cn('relative bg-gray-100 dark:bg-navy-900', large ? 'aspect-[3/4]' : 'aspect-[4/3]')}>
+      {/* aspect-square keeps every thumbnail the exact same size */}
+      <div className="relative aspect-square w-full bg-gray-100 dark:bg-navy-900">
         {photo.thumbnail_base64 ? (
           <img
             src={photo.thumbnail_base64}
@@ -96,18 +101,23 @@ function PhotoCard({ photo, onActivate, selectMode, selected, large }) {
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-gray-400">
+          <div className="flex h-full w-full items-center justify-center text-gray-400 dark:text-white/40">
             <ImageIcon size={28} />
           </div>
         )}
         <StatusBadge status={photo.tag_status} />
       </div>
-      <div className="p-3">
-        <div className="truncate text-sm font-semibold" title={photo.filename}>
-          {photo.filename}
-        </div>
-        <div className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-400" title={photo.folder_path}>
-          <Folder size={11} className="shrink-0" /> {photo.folder || '—'}
+      <div className={cn('flex flex-col justify-between p-3', infoMinH)}>
+        <div>
+          <div className="truncate text-sm font-semibold text-gray-900 dark:text-white" title={photo.filename}>
+            {photo.filename}
+          </div>
+          <div
+            className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-500 dark:text-white/60"
+            title={photo.folder_path}
+          >
+            <Folder size={11} className="shrink-0" /> {photo.folder || '—'}
+          </div>
         </div>
         {tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -134,8 +144,8 @@ function PhotoRow({ photo, onActivate, selectMode, selected }) {
           ? 'grid-cols-[32px_60px_2fr_2fr_100px_80px_2fr_90px]'
           : 'grid-cols-[60px_2fr_2fr_100px_80px_2fr_90px]',
         selected
-          ? 'border-navy-100 bg-brand-500/10 dark:border-navy-700'
-          : 'border-gray-100 hover:bg-gray-50 dark:border-navy-700 dark:hover:bg-navy-700/50',
+          ? 'border-gray-100 bg-brand-500/10 dark:border-white/10'
+          : 'border-gray-100 hover:bg-gray-50 dark:border-white/10 dark:hover:bg-navy-700/50',
       )}
       onClick={() => onActivate(photo)}
     >
@@ -148,19 +158,19 @@ function PhotoRow({ photo, onActivate, selectMode, selected }) {
         {photo.thumbnail_base64 ? (
           <img src={photo.thumbnail_base64} alt={photo.filename} loading="lazy" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-gray-400">
+          <div className="flex h-full w-full items-center justify-center text-gray-400 dark:text-white/40">
             <ImageIcon size={18} />
           </div>
         )}
       </div>
-      <div className="truncate font-medium" title={photo.filename}>
+      <div className="truncate font-medium text-gray-900 dark:text-white" title={photo.filename}>
         {photo.filename}
       </div>
-      <div className="truncate text-xs text-gray-400" title={photo.folder_path}>
+      <div className="truncate text-xs text-gray-500 dark:text-white/60" title={photo.folder_path}>
         {photo.folder_path || photo.folder || '—'}
       </div>
-      <div className="truncate text-xs text-gray-400">{formatDate(photo.taken_at)}</div>
-      <div className="truncate text-xs text-gray-400">{formatBytes(photo.file_size)}</div>
+      <div className="truncate text-xs text-gray-500 dark:text-white/50">{formatDate(photo.taken_at)}</div>
+      <div className="truncate text-xs text-gray-500 dark:text-white/50">{formatBytes(photo.file_size)}</div>
       <div className="flex flex-wrap gap-1 overflow-hidden">
         {tags.slice(0, 3).map((t) => (
           <span key={t} className={tagPill}>
@@ -183,7 +193,7 @@ function MasterCheckbox({ allSelected, someSelected, onToggle }) {
         'inline-flex h-5 w-5 items-center justify-center rounded-md border-2 transition',
         allSelected || someSelected
           ? 'border-brand-500 bg-brand-500 text-white'
-          : 'border-gray-300 dark:border-navy-500',
+          : 'border-gray-300 dark:border-white/30',
       )}
       onClick={onToggle}
       aria-label="Pilih / batalkan semua"
@@ -215,7 +225,7 @@ export default function PhotoGrid({
 }) {
   if (!loading && photos.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-200 py-20 text-center text-gray-400 dark:border-navy-700">
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-200 py-20 text-center text-gray-400 dark:border-white/10 dark:text-white/40">
         <ImageIcon size={40} />
         <p>Belum ada foto. Scan folder dulu untuk mengisi katalog.</p>
       </div>
@@ -246,10 +256,10 @@ export default function PhotoGrid({
 
   const titleBar = (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="truncate text-base font-semibold" title={titleLabel}>
+      <span className="truncate text-base font-semibold text-gray-900 dark:text-white" title={titleLabel}>
         {titleIcon} {titleLabel}
       </span>
-      <span className="shrink-0 text-sm tabular-nums text-gray-400">
+      <span className="shrink-0 text-sm tabular-nums text-gray-500 dark:text-white/50">
         {photos.length} foto{loading ? '…' : ''}
       </span>
     </div>
@@ -282,9 +292,11 @@ export default function PhotoGrid({
     return groups
   }
 
+  // Fixed responsive columns → every card shares the same width (no auto-fill jitter).
   const gridClass = large
-    ? 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]'
-    : 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]'
+    ? 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4'
+    : 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+  const infoMinH = large ? 'min-h-[100px]' : 'min-h-[90px]'
 
   const renderCard = (p) => (
     <PhotoCard
@@ -293,18 +305,18 @@ export default function PhotoGrid({
       onActivate={activate}
       selectMode={selectMode}
       selected={isSelected(p.id)}
-      large={large}
+      infoMinH={infoMinH}
     />
   )
 
   const footer = (
     <>
-      {loading && <div className="py-6 text-center text-gray-400">Memuat…</div>}
+      {loading && <div className="py-6 text-center text-gray-500 dark:text-white/50">Memuat…</div>}
       {!loading && hasMore && (
         <div className="flex justify-center py-3">
           <button
             type="button"
-            className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:border-brand-300 hover:text-brand-500 dark:border-navy-700 dark:text-gray-300"
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-brand-300 hover:text-brand-500 dark:border-white/10 dark:bg-navy-700 dark:text-white/70 dark:hover:bg-navy-600 dark:hover:text-white"
             onClick={onLoadMore}
           >
             Muat lebih banyak
@@ -318,10 +330,10 @@ export default function PhotoGrid({
     return (
       <div className="flex flex-col gap-4">
         {titleBar}
-        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white dark:border-navy-700 dark:bg-navy-800">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-navy-700">
           <div
             className={cn(
-              'grid items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:border-navy-700 dark:bg-navy-900',
+              'grid items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-white/10 dark:bg-navy-900 dark:text-white/50',
               selectMode
                 ? 'grid-cols-[32px_60px_2fr_2fr_100px_80px_2fr_90px]'
                 : 'grid-cols-[60px_2fr_2fr_100px_80px_2fr_90px]',
@@ -362,7 +374,7 @@ export default function PhotoGrid({
         <div className="flex flex-col gap-6">
           {buildGroups().map((g) => (
             <div key={g.id} className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 border-b border-gray-200 pb-2 text-sm font-semibold text-gray-500 dark:border-navy-700 dark:text-navy-100">
+              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 text-sm font-semibold text-gray-600 dark:border-white/10 dark:bg-navy-900/30 dark:text-white/70">
                 {g.color && (
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: g.color }} />
                 )}

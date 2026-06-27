@@ -184,7 +184,7 @@ const initialProgress = {
 }
 
 const cardClass =
-  'rounded-2xl border border-gray-100 bg-white p-6 shadow-card dark:border-navy-700 dark:bg-navy-800 dark:shadow-card-dark'
+  'rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-navy-700 dark:shadow-card-dark'
 
 const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) {
   const [state, setState] = useState('idle') // idle | scanning | paused | done | exhausted
@@ -648,14 +648,14 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
       {busy && (
         <div className="flex flex-wrap items-center gap-3">
-          <span className="mr-auto inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-300">
+          <span className="mr-auto inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-white/70">
             {phase === 'retag' ? <RefreshCw size={15} /> : <FolderSearch size={15} />}
             {phase === 'retag' ? 'Re-tagging' : 'Scanning'}
             {progress.label ? `: ${progress.label}` : ''}
           </span>
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-brand-300 dark:border-navy-600 dark:bg-navy-700 dark:text-gray-300"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:border-brand-300 dark:border-white/10 dark:bg-navy-600 dark:text-white/70"
             onClick={() => {
               pausedRef.current = !pausedRef.current
               setState(pausedRef.current ? 'paused' : 'scanning')
@@ -681,7 +681,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
 
       {busy && (
         <div className="mt-4 flex flex-col gap-3">
-          <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-navy-700">
+          <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-navy-900">
             <div
               className={
                 'h-full rounded-full bg-brand-500 transition-all duration-300' +
@@ -728,7 +728,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
               const { Icon, cls, clean } = parseStatus(statusText)
               const done = statusText.startsWith('✅')
               return (
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-white/70">
                   {Icon ? (
                     <Icon size={15} className={cn('shrink-0', cls, !done && 'animate-pulse')} />
                   ) : (
@@ -757,7 +757,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       )}
 
       {state === 'done' && summary && (
-        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-navy-700 dark:bg-navy-700">
+        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm dark:border-white/10 dark:bg-navy-900">
           {summary.aborted ? 'Dihentikan.' : 'Selesai!'} {summary.total} foto · {summary.tagged}{' '}
           tagged · {summary.pending} pending · {summary.failed} failed · {summary.skipped} skipped ·{' '}
           {summary.seconds}s
@@ -771,7 +771,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
           onClick={() => setChooser(null)}
         >
           <div
-            className="w-full max-w-md rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-navy-700 dark:bg-navy-800"
+            className="w-full max-w-md rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-navy-800"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-bold">Tambahkan ke section mana?</h2>
@@ -785,7 +785,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
                 Section
               </label>
               <select
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-600 dark:bg-navy-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-navy-900 dark:text-white"
                 value={chooserSection}
                 onChange={(e) => setChooserSection(e.target.value)}
               >
@@ -805,7 +805,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
                   Nama section baru
                 </label>
                 <input
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-600 dark:bg-navy-900 dark:text-white"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-navy-900 dark:text-white"
                   placeholder={chooser.rootName}
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
@@ -824,7 +824,7 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
               </button>
               <button
                 type="button"
-                className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-navy-600 dark:text-gray-300 dark:hover:bg-navy-700"
+                className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 dark:border-white/10 dark:text-white/70 dark:hover:bg-navy-700"
                 onClick={() => setChooser(null)}
               >
                 Batal

@@ -6,7 +6,7 @@ import { cn } from '../lib/cn'
 const onlyDigits = (v) => v.replace(/\D/g, '').slice(0, 6)
 
 const inputClass =
-  'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-navy-600 dark:bg-navy-900 dark:text-white'
+  'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30 dark:border-white/10 dark:bg-navy-900 dark:text-white'
 
 const TABS = [
   { id: 'security', label: 'Keamanan' },
@@ -58,7 +58,7 @@ export default function SettingsModal({ onClose, onLogout }) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[440px] rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-navy-700 dark:bg-navy-800"
+        className="relative w-full max-w-[440px] rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-navy-800"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -73,7 +73,7 @@ export default function SettingsModal({ onClose, onLogout }) {
         <h2 className="text-xl font-bold">Pengaturan</h2>
 
         {/* Tabs */}
-        <div className="mt-4 flex gap-1 border-b border-gray-200 dark:border-navy-700">
+        <div className="mt-4 flex gap-1 border-b border-gray-200 dark:border-white/10">
           {TABS.map((t) => (
             <button
               key={t.id}

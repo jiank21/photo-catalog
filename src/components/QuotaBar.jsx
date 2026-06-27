@@ -89,7 +89,7 @@ export default function QuotaBar({ getStats }) {
   if (!stats) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-card dark:border-navy-700 dark:bg-navy-800 dark:shadow-card-dark">
+    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-navy-700 dark:shadow-card-dark">
       <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {stats.models.map((m) => {
           const usedPct = m.quota ? Math.min(100, Math.round((m.used / m.quota) * 100)) : 0
@@ -100,7 +100,7 @@ export default function QuotaBar({ getStats }) {
             <div
               key={m.id}
               className={cn(
-                'relative flex flex-col gap-2 rounded-xl border border-transparent bg-gray-50 p-3 transition-all duration-200 dark:bg-navy-700',
+                'relative flex flex-col gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 transition-all duration-200 dark:border-white/5 dark:bg-navy-900',
                 !m.available && 'opacity-50',
                 isActive && 'border-brand-500 ring-2 ring-brand-500/40',
               )}

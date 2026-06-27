@@ -160,7 +160,7 @@ const TABS = [
 function FaqItem({ q, a }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="border-b border-gray-200 dark:border-navy-700">
+    <div className="border-b border-gray-200 dark:border-white/10">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 py-3.5 text-left text-sm font-medium"
@@ -195,7 +195,7 @@ export default function HelpModal({ onClose }) {
       onClick={onClose}
     >
       <div
-        className="relative max-h-[90vh] w-full max-w-[680px] overflow-auto rounded-3xl border border-gray-100 bg-white shadow-2xl dark:border-navy-700 dark:bg-navy-800"
+        className="relative max-h-[90vh] w-full max-w-[680px] overflow-auto rounded-3xl border border-gray-100 bg-white shadow-2xl dark:border-white/10 dark:bg-navy-800"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -210,7 +210,7 @@ export default function HelpModal({ onClose }) {
         <div className="p-6">
           <h2 className="text-xl font-bold">📸 Panduan Photo Catalog</h2>
 
-          <div className="mb-5 mt-4 flex gap-1 border-b border-gray-200 dark:border-navy-700" role="tablist">
+          <div className="mb-5 mt-4 flex gap-1 border-b border-gray-200 dark:border-white/10" role="tablist">
             {TABS.map((t) => (
               <button
                 key={t.id}

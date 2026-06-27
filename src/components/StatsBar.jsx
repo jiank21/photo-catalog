@@ -9,7 +9,7 @@ function StatCard({ icon, label, value, tone }) {
     blue: 'bg-blue-500/10 text-blue-500',
   }
   return (
-    <div className="flex flex-1 items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 dark:border-navy-700 dark:bg-navy-800 dark:shadow-card-dark">
+    <div className="flex flex-1 items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 dark:border-white/10 dark:bg-navy-700 dark:shadow-card-dark">
       <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${tones[tone]}`}>
         {icon}
       </span>

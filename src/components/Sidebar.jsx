@@ -92,7 +92,7 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-screen w-[280px] flex-col border-r border-gray-200 bg-white shadow-sm dark:border-navy-700 dark:bg-navy-800 dark:shadow-none">
+    <aside className="fixed left-0 top-0 z-30 flex h-screen w-[280px] flex-col border-r border-gray-200 bg-white shadow-lg dark:border-white/10 dark:bg-navy-800 dark:shadow-none">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5">
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-purple-500 text-white shadow-md">
@@ -106,12 +106,12 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="mb-2 mt-1 border-t border-gray-200 dark:border-navy-700" />
+      <div className="mb-2 mt-1 border-t border-gray-200 dark:border-white/10" />
 
       {/* Scrollable sections list */}
       <div className="flex-1 overflow-y-auto px-4">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
             Sections
           </span>
           <button
@@ -130,8 +130,8 @@ export default function Sidebar({
           className={cn(
             navItemBase,
             activeSection === 'all'
-              ? 'bg-brand-500 text-white shadow-md'
-              : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700',
+              ? 'bg-brand-500 text-white shadow-lg'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white',
           )}
           onClick={() => onSelectSection?.('all')}
         >
@@ -154,7 +154,7 @@ export default function Sidebar({
                 <div
                   className={cn(
                     'flex items-center rounded-xl transition-all duration-200',
-                    isActive ? 'bg-brand-500 text-white shadow-md' : 'hover:bg-gray-100 dark:hover:bg-navy-700',
+                    isActive ? 'bg-brand-500 text-white shadow-lg' : 'hover:bg-gray-100 dark:hover:bg-white/10',
                   )}
                 >
                   <button
@@ -175,7 +175,7 @@ export default function Sidebar({
                     type="button"
                     className={cn(
                       'flex min-w-0 flex-1 items-center gap-2 py-2.5 pr-2 text-sm',
-                      isActive ? 'text-white' : 'text-gray-600 dark:text-gray-300',
+                      isActive ? 'text-white' : 'text-gray-600 dark:text-white/70',
                     )}
                     onClick={() => onSelectSection?.(s.id)}
                   >
@@ -207,14 +207,14 @@ export default function Sidebar({
                     <div className="mb-2 flex flex-wrap gap-1.5">
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-gray-300"
+                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-white/70"
                         onClick={() => onScanToSection?.(s.id)}
                       >
                         <FolderInput size={12} /> Folder
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-gray-300"
+                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-white/70"
                         onClick={() =>
                           onRetag?.({ scope: 'section', value: s.id, label: `Section: ${s.name}` })
                         }
@@ -223,14 +223,14 @@ export default function Sidebar({
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-gray-300"
+                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-white/70"
                         onClick={() => handleRename(s)}
                       >
                         <Pencil size={12} /> Rename
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-red-500/10 hover:text-red-500 dark:bg-navy-700 dark:text-gray-300"
+                        className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-red-500/10 hover:text-red-500 dark:bg-navy-700 dark:text-white/70"
                         onClick={() => handleDeleteSection(s)}
                       >
                         <Trash2 size={12} /> Hapus
@@ -250,7 +250,7 @@ export default function Sidebar({
                                 'group flex items-center justify-between gap-1 rounded-lg px-2 py-1.5 transition-all duration-200',
                                 folderActive
                                   ? 'bg-brand-500/10'
-                                  : 'hover:bg-gray-100 dark:hover:bg-navy-700',
+                                  : 'hover:bg-gray-100 dark:hover:bg-white/5',
                               )}
                             >
                               <button
@@ -259,14 +259,14 @@ export default function Sidebar({
                                   'flex min-w-0 flex-1 items-center gap-1.5 truncate text-left text-xs',
                                   folderActive
                                     ? 'text-brand-500'
-                                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white',
+                                    : 'text-gray-500 hover:text-gray-700 dark:text-white/60 dark:hover:text-white',
                                 )}
                                 title={`Filter foto di ${f.folder_path}`}
                                 onClick={() => onSelectFolder?.(f.folder_path)}
                               >
                                 <Folder size={12} className="shrink-0" />
                                 <span className="truncate">{shortFolder(f.folder_path)}</span>
-                                <span className="rounded-full bg-gray-200 px-1.5 text-[10px] tabular-nums text-gray-500 dark:bg-navy-600 dark:text-gray-300">
+                                <span className="rounded-full bg-gray-200 px-1.5 text-[10px] tabular-nums text-gray-500 dark:bg-navy-600 dark:text-white/70">
                                   {f.count}
                                 </span>
                               </button>
@@ -308,10 +308,10 @@ export default function Sidebar({
       </div>
 
       {/* Footer actions */}
-      <div className="mt-auto border-t border-gray-200 px-4 py-4 dark:border-navy-700">
+      <div className="mt-auto border-t border-gray-200 px-4 py-4 dark:border-white/10">
         <button
           type="button"
-          className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700')}
+          className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white')}
           onClick={() => onRetag?.({ scope: 'all', label: 'Semua foto' })}
           title="Re-tag semua foto di katalog"
         >
@@ -319,14 +319,14 @@ export default function Sidebar({
         </button>
         <button
           type="button"
-          className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700')}
+          className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white')}
           onClick={onOpenSettings}
         >
           <Settings2 size={16} /> Pengaturan
         </button>
         <button
           type="button"
-          className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700')}
+          className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white')}
           onClick={onOpenHelp}
         >
           <BookOpen size={16} /> Bantuan
