@@ -73,32 +73,33 @@ const tagPill =
 const cardShell =
   'group flex w-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 dark:bg-navy-700'
 
-function PhotoCard({ photo, onActivate, selectMode, selected, infoMinH }) {
+function PhotoCard({ photo, onActivate, selectMode, selected, large }) {
   const tags = photo.tags || []
+  // Fixed total/thumbnail/info heights → every card is exactly the same size,
+  // regardless of filename length or tag count.
+  const cardH = large ? 'h-[340px]' : 'h-[280px]'
+  const thumbH = large ? 'h-[220px]' : 'h-[180px]'
+  const maxTags = large ? 4 : 3
   return (
     <button
       type="button"
       className={cn(
         cardShell,
+        cardH,
         selected
           ? 'border-brand-500 ring-2 ring-brand-500 dark:border-brand-500'
           : 'border-gray-200 hover:border-brand-300 hover:shadow-md dark:border-white/10 dark:hover:bg-navy-600',
       )}
       onClick={() => onActivate(photo)}
     >
-      {selectMode && (
-        <div className="flex items-center px-3 pt-3">
-          <SelectBox selected={selected} />
-        </div>
-      )}
-      {/* aspect-square keeps every thumbnail the exact same size */}
-      <div className="relative aspect-square w-full bg-gray-100 dark:bg-navy-900">
+      {/* Thumbnail: fixed height (not aspect-square) so it never tracks width */}
+      <div className={cn('relative w-full flex-shrink-0 bg-gray-100 dark:bg-navy-900', thumbH)}>
         {photo.thumbnail_base64 ? (
           <img
             src={photo.thumbnail_base64}
             alt={photo.filename}
             loading="lazy"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-center"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-gray-400 dark:text-white/40">
@@ -106,22 +107,27 @@ function PhotoCard({ photo, onActivate, selectMode, selected, infoMinH }) {
           </div>
         )}
         <StatusBadge status={photo.tag_status} />
+        {selectMode && (
+          <div className="absolute left-2 top-2">
+            <SelectBox selected={selected} />
+          </div>
+        )}
       </div>
-      <div className={cn('flex flex-col justify-between p-3', infoMinH)}>
-        <div>
-          <div className="truncate text-sm font-semibold text-gray-900 dark:text-white" title={photo.filename}>
-            {photo.filename}
-          </div>
-          <div
-            className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-500 dark:text-white/60"
-            title={photo.folder_path}
-          >
-            <Folder size={11} className="shrink-0" /> {photo.folder || '—'}
-          </div>
+      {/* Info: takes the remaining fixed height, overflow hidden so extra tags
+          can never push the card taller */}
+      <div className="flex flex-1 flex-col overflow-hidden p-3">
+        <div className="truncate text-sm font-semibold text-gray-900 dark:text-white" title={photo.filename}>
+          {photo.filename}
+        </div>
+        <div
+          className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-500 dark:text-white/60"
+          title={photo.folder_path}
+        >
+          <Folder size={11} className="shrink-0" /> {photo.folder || '—'}
         </div>
         {tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {tags.slice(0, 4).map((t) => (
+          <div className="mt-2 flex max-h-[40px] flex-wrap gap-1 overflow-hidden">
+            {tags.slice(0, maxTags).map((t) => (
               <span key={t} className={tagPill}>
                 {t}
               </span>
@@ -296,7 +302,6 @@ export default function PhotoGrid({
   const gridClass = large
     ? 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4'
     : 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-  const infoMinH = large ? 'min-h-[100px]' : 'min-h-[90px]'
 
   const renderCard = (p) => (
     <PhotoCard
@@ -305,7 +310,7 @@ export default function PhotoGrid({
       onActivate={activate}
       selectMode={selectMode}
       selected={isSelected(p.id)}
-      infoMinH={infoMinH}
+      large={large}
     />
   )
 
