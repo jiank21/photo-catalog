@@ -13,6 +13,8 @@
 // RateLimitExhaustedError so the caller can mark the photo "pending".
 // ============================================================
 
+import { addNotification } from './notifications'
+
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY
@@ -850,6 +852,7 @@ export async function tagImage(base64, mimeType = 'image/jpeg') {
         if (err.rateLimited) {
           usage[model.id].exhausted = true
           markExhausted(model.id) // persisted exhausted flag for today
+          addNotification('rate_limit', `Model ${name} mencapai limit harian`)
           console.warn(`[tagger] ${model.label} rate limited, falling through`)
           continue
         }

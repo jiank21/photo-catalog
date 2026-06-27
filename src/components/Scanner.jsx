@@ -6,7 +6,22 @@ import {
   useImperativeHandle,
   forwardRef,
 } from 'react'
-import { FolderSearch, Pause, Play, Square, AlertTriangle, RefreshCw, ScanLine } from 'lucide-react'
+import {
+  FolderSearch,
+  Pause,
+  Play,
+  Square,
+  AlertTriangle,
+  RefreshCw,
+  ScanLine,
+  FolderOpen,
+  ImagePlus,
+  MapPin,
+  Bot,
+  ArrowRightLeft,
+  Save,
+  CheckCircle2,
+} from 'lucide-react'
 import {
   createScanSession,
   updateScanSession,
@@ -18,6 +33,8 @@ import {
 } from '../lib/supabase'
 import { tagImage, RateLimitExhaustedError, resetUsage } from '../lib/tagger'
 import { extractExif, reverseGeocode, exifToTags } from '../lib/exif'
+import { addNotification } from '../lib/notifications'
+import { cn } from '../lib/cn'
 
 // Extract EXIF + reverse-geocode GPS into one bundle.
 async function gatherExif(file) {
@@ -64,6 +81,24 @@ function renderStatus(text) {
     }
   }
   return text
+}
+
+// Map a status line (emoji-prefixed) to a lucide icon + cleaned text.
+function parseStatus(text) {
+  const clean = text.replace(/^[^\p{L}\p{N}]+/u, '').trim()
+  let Icon = null
+  let cls = ''
+  if (/Selesai/i.test(text) || text.startsWith('✅')) {
+    Icon = CheckCircle2
+    cls = 'text-emerald-500'
+  } else if (/Membaca file/i.test(text)) Icon = FolderOpen
+  else if (/thumbnail/i.test(text)) Icon = ImagePlus
+  else if (/EXIF/i.test(text)) Icon = ScanLine
+  else if (/lokasi/i.test(text)) Icon = MapPin
+  else if (/Menganalisis|Menambah detail/i.test(text)) Icon = Bot
+  else if (/Fallback/i.test(text)) Icon = ArrowRightLeft
+  else if (/Menyimpan/i.test(text)) Icon = Save
+  return { Icon, cls, clean }
 }
 
 // Photo extensions we care about.
@@ -345,6 +380,9 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
               status: 'aborted',
             })
             finishExhausted(counters, files.length - finalDone)
+            if (counters.tagged > 0) {
+              addNotification('tag_complete', `Tagging selesai: ${counters.tagged} foto ter-tag`)
+            }
             return
           }
           status = 'pending'
@@ -391,6 +429,12 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
         status: aborted ? 'aborted' : 'finished',
       })
       finishDone(counters, files.length, aborted)
+      if (!aborted) {
+        addNotification('scan_complete', `Scan selesai: ${files.length} foto ditemukan`)
+        if (counters.tagged > 0) {
+          addNotification('tag_complete', `Tagging selesai: ${counters.tagged} foto ter-tag`)
+        }
+      }
     },
     [waitWhilePaused, onScanDone],
   )
@@ -445,6 +489,9 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
             const finalDone = i + 1
             setProgress((s) => ({ ...s, done: finalDone, pending: counters.pending }))
             finishExhausted(counters, photos.length - finalDone)
+            if (counters.tagged > 0) {
+              addNotification('retag_complete', `Re-tag selesai: ${counters.tagged} foto diperbarui`)
+            }
             return
           }
           await updatePhotoStatus(p.id, 'pending')
@@ -455,6 +502,9 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
       }
 
       finishDone(counters, photos.length, abortRef.current)
+      if (!abortRef.current) {
+        addNotification('retag_complete', `Re-tag selesai: ${counters.tagged} foto diperbarui`)
+      }
     },
     [waitWhilePaused, onScanDone],
   )
@@ -673,15 +723,24 @@ const Scanner = forwardRef(function Scanner({ sections = [], onScanDone }, ref) 
             </span>
           </div>
 
-          {statusText && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
-              <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
-              <span className="min-w-0 truncate">
-                {renderStatus(statusText)}
-                {!statusText.startsWith('✅') ? dots : ''}
-              </span>
-            </div>
-          )}
+          {statusText &&
+            (() => {
+              const { Icon, cls, clean } = parseStatus(statusText)
+              const done = statusText.startsWith('✅')
+              return (
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+                  {Icon ? (
+                    <Icon size={15} className={cn('shrink-0', cls, !done && 'animate-pulse')} />
+                  ) : (
+                    <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                  )}
+                  <span className="min-w-0 truncate">
+                    {renderStatus(clean)}
+                    {!done ? dots : ''}
+                  </span>
+                </div>
+              )
+            })()}
         </div>
       )}
 

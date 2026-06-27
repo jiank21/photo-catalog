@@ -2,6 +2,59 @@ import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, KeyRound } from 'lucide-react'
 import { cn } from '../lib/cn'
 
+// ---------------- Provider brand icons (inline SVG) ----------------
+const GeminiIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <path d="M12 2L13.5 9.5L21 11L13.5 12.5L12 20L10.5 12.5L3 11L10.5 9.5L12 2Z" fill="url(#gemini-grad)" />
+    <defs>
+      <linearGradient id="gemini-grad" x1="0" y1="0" x2="24" y2="24">
+        <stop offset="0%" stopColor="#4285f4" />
+        <stop offset="100%" stopColor="#34a853" />
+      </linearGradient>
+    </defs>
+  </svg>
+)
+
+const GroqIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="10" fill="#f55036" />
+    <path d="M8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0zm4-2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" fill="white" />
+  </svg>
+)
+
+const OpenRouterIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <rect width="24" height="24" rx="6" fill="#6467f2" />
+    <path d="M7 8h10M7 12h7M7 16h10" stroke="white" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+)
+
+const HuggingFaceIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="10" fill="#FFD21E" />
+    <circle cx="9" cy="10" r="1.5" fill="#333" />
+    <circle cx="15" cy="10" r="1.5" fill="#333" />
+    <path d="M8 14s1 2 4 2 4-2 4-2" stroke="#333" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+const GemmaIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <rect width="24" height="24" rx="6" fill="#1a73e8" />
+    <text x="12" y="16" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">
+      G
+    </text>
+  </svg>
+)
+
+const MODEL_ICONS = {
+  gemini: GeminiIcon,
+  openrouter: OpenRouterIcon,
+  groq: GroqIcon,
+  hf: HuggingFaceIcon,
+  gemma: GemmaIcon,
+}
+
 // Bar color by remaining fraction (or red when exhausted).
 function barColor(remaining, quota, exhausted) {
   if (exhausted) return '#ef4444'
@@ -42,6 +95,7 @@ export default function QuotaBar({ getStats }) {
           const usedPct = m.quota ? Math.min(100, Math.round((m.used / m.quota) * 100)) : 0
           const color = barColor(m.remaining, m.quota, m.exhausted)
           const isActive = activeModel === m.id
+          const ModelIcon = MODEL_ICONS[m.id]
           return (
             <div
               key={m.id}
@@ -60,11 +114,17 @@ export default function QuotaBar({ getStats }) {
               <div className="flex items-center justify-between gap-2 text-xs">
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 truncate font-semibold',
+                    'inline-flex items-center gap-1.5 truncate font-semibold',
                     !m.available && 'text-gray-400 line-through',
                   )}
                 >
-                  {!m.available && <KeyRound size={11} />}
+                  {ModelIcon ? (
+                    <span className={cn('shrink-0', !m.available && 'opacity-50')}>
+                      <ModelIcon />
+                    </span>
+                  ) : !m.available ? (
+                    <KeyRound size={11} />
+                  ) : null}
                   {m.short}
                 </span>
                 <span

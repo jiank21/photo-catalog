@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, Copy, Check, Plus, FolderInput, RefreshCw, Camera, MapPin } from 'lucide-react'
+import { X, Copy, Check, Plus, FolderInput, Wand2, Camera, MapPin, Info, Hash, ExternalLink } from 'lucide-react'
 import { supabase, addManualTag, removeTag } from '../lib/supabase'
 import TagBadge from './TagBadge'
 
@@ -188,7 +188,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
                   disabled={retagging}
                   title="Jalankan AI tagging ulang untuk foto ini"
                 >
-                  <RefreshCw size={14} className={retagging ? 'animate-spin' : undefined} />
+                  <Wand2 size={14} className={retagging ? 'animate-pulse' : undefined} />
                   {retagging ? 'Re-tagging…' : 'Re-tag'}
                 </button>
               )}
@@ -196,8 +196,8 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
 
             {/* Filepath + copy */}
             <div>
-              <label className="mb-1.5 block text-xs uppercase tracking-wide text-gray-400">
-                Path lengkap
+              <label className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-400">
+                <MapPin size={14} /> Path lengkap
               </label>
               <div className="flex items-stretch gap-2">
                 <code className="flex-1 break-all rounded-xl bg-gray-50 p-3 font-mono text-xs dark:bg-navy-900">
@@ -218,7 +218,11 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
             </div>
 
             {/* Metadata */}
-            <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-400">
+                <Info size={14} /> Info
+              </label>
+              <div className="grid grid-cols-2 gap-3">
               <Meta label="Ukuran">{formatBytes(photo.file_size)}</Meta>
               <Meta label="Resolusi">
                 {photo.width && photo.height ? `${photo.width}×${photo.height}` : '—'}
@@ -232,6 +236,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
               <Meta label="Folder" title={photo.folder_path}>
                 {photo.folder || '—'}
               </Meta>
+              </div>
             </div>
 
             {/* Camera & technical info */}
@@ -263,7 +268,7 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
                           target="_blank"
                           rel="noreferrer"
                         >
-                          <MapPin size={11} /> Buka Maps
+                          <ExternalLink size={11} /> Buka Maps
                         </a>
                       )}
                     </span>
@@ -274,7 +279,9 @@ export default function PhotoModal({ photo, onClose, onSearchTag, onTagsChanged,
 
             {/* Tags */}
             <div>
-              <label className="mb-1.5 block text-xs uppercase tracking-wide text-gray-400">Tags</label>
+              <label className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-400">
+                <Hash size={14} /> Tags
+              </label>
               <div className="flex flex-wrap gap-1.5">
                 {tagRows.length === 0 && <span className="text-xs text-gray-400">Belum ada tag.</span>}
                 {tagRows.map((r) => (

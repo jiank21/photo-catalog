@@ -1,58 +1,24 @@
 import { useState } from 'react'
 import {
   Camera,
-  Plus,
   FolderPlus,
+  FolderInput,
   Pencil,
   Trash2,
-  RefreshCw,
-  ChevronDown,
+  Sparkles,
+  Wand2,
   ChevronRight,
   Folder,
-  Settings,
-  HelpCircle,
-  Sun,
-  Moon,
+  Settings2,
+  BookOpen,
 } from 'lucide-react'
 import { createSection, renameSection, deleteSection, deleteFolder } from '../lib/supabase'
-import { useTheme } from '../lib/theme'
 import { cn } from '../lib/cn'
 
 function shortFolder(path) {
   if (!path) return '—'
   const parts = path.split('/')
   return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : path
-}
-
-function ThemeToggle() {
-  const { isDark, toggleTheme } = useTheme()
-  return (
-    <div className="flex items-center justify-between rounded-xl bg-gray-100 px-3 py-2.5 dark:bg-navy-700/50">
-      <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-        {isDark ? 'Dark' : 'Light'}
-      </span>
-      <button
-        type="button"
-        onClick={toggleTheme}
-        role="switch"
-        aria-checked={isDark}
-        aria-label="Ganti tema terang/gelap"
-        className={cn(
-          'relative h-7 w-14 rounded-full transition-colors duration-300',
-          isDark ? 'bg-navy-700' : 'bg-gray-200',
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-brand-500 shadow transition-transform duration-300',
-            isDark ? 'translate-x-7' : 'translate-x-0.5',
-          )}
-        >
-          {isDark ? <Moon size={13} /> : <Sun size={13} />}
-        </span>
-      </button>
-    </div>
-  )
 }
 
 const navItemBase =
@@ -140,12 +106,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Theme toggle */}
-      <div className="px-4">
-        <ThemeToggle />
-      </div>
-
-      <div className="my-4 border-t border-gray-200 dark:border-navy-700" />
+      <div className="mb-2 mt-1 border-t border-gray-200 dark:border-navy-700" />
 
       {/* Scrollable sections list */}
       <div className="flex-1 overflow-y-auto px-4">
@@ -159,7 +120,7 @@ export default function Sidebar({
             title="Buat section baru"
             className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-all duration-200 hover:bg-brand-500/10 hover:text-brand-500"
           >
-            <Plus size={16} />
+            <FolderPlus size={16} />
           </button>
         </div>
 
@@ -174,7 +135,7 @@ export default function Sidebar({
           )}
           onClick={() => onSelectSection?.('all')}
         >
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-gray-400" />
+          <Folder size={16} className="shrink-0" />
           <span className="flex-1 truncate text-left">Semua foto</span>
         </button>
 
@@ -205,7 +166,10 @@ export default function Sidebar({
                     onClick={() => toggle(s.id)}
                     aria-label="Expand"
                   >
-                    {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <ChevronRight
+                      size={14}
+                      className={cn('transition-transform duration-200', open && 'rotate-90')}
+                    />
                   </button>
                   <button
                     type="button"
@@ -215,9 +179,10 @@ export default function Sidebar({
                     )}
                     onClick={() => onSelectSection?.(s.id)}
                   >
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ background: s.color || '#6172F3' }}
+                    <Folder
+                      size={16}
+                      className="shrink-0"
+                      style={isActive ? undefined : { color: s.color || '#6172F3' }}
                     />
                     <span className="flex-1 truncate text-left" title={s.name}>
                       {s.name}
@@ -245,7 +210,7 @@ export default function Sidebar({
                         className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-brand-500/10 hover:text-brand-500 dark:bg-navy-700 dark:text-gray-300"
                         onClick={() => onScanToSection?.(s.id)}
                       >
-                        <FolderPlus size={12} /> Folder
+                        <FolderInput size={12} /> Folder
                       </button>
                       <button
                         type="button"
@@ -254,7 +219,7 @@ export default function Sidebar({
                           onRetag?.({ scope: 'section', value: s.id, label: `Section: ${s.name}` })
                         }
                       >
-                        <RefreshCw size={12} /> Re-tag
+                        <Wand2 size={12} /> Re-tag
                       </button>
                       <button
                         type="button"
@@ -318,7 +283,7 @@ export default function Sidebar({
                                     })
                                   }
                                 >
-                                  <RefreshCw size={13} />
+                                  <Wand2 size={13} />
                                 </button>
                                 <button
                                   type="button"
@@ -350,21 +315,21 @@ export default function Sidebar({
           onClick={() => onRetag?.({ scope: 'all', label: 'Semua foto' })}
           title="Re-tag semua foto di katalog"
         >
-          <RefreshCw size={16} /> Re-tag Semua
+          <Sparkles size={16} /> Re-tag Semua
         </button>
         <button
           type="button"
           className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700')}
           onClick={onOpenSettings}
         >
-          <Settings size={16} /> Pengaturan
+          <Settings2 size={16} /> Pengaturan
         </button>
         <button
           type="button"
           className={cn(navItemBase, 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-navy-700')}
           onClick={onOpenHelp}
         >
-          <HelpCircle size={16} /> Bantuan
+          <BookOpen size={16} /> Bantuan
         </button>
       </div>
     </aside>
