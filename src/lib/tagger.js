@@ -27,7 +27,7 @@ export class RateLimitExhaustedError extends Error {
 //   USAGE_KEY:   { "YYYY-MM-DD": { <modelId>: count } }
 //   EXHAUST_KEY: { "YYYY-MM-DD": { <modelId>: true } }
 //   Writes keep only today's entry, so a new day auto-resets.
-//   Keys are the modelConfig ids (gemini, openrouter, groq, hf, gemma…).
+//   Keys are the modelConfig ids (gemini, openrouter, openrouter-vision, groq, gemma).
 // ============================================================
 
 const USAGE_KEY = 'photo-catalog-model-usage'
@@ -626,53 +626,9 @@ async function tagWithGroq(cfg, base64, mimeType, prompt = TAG_PROMPT) {
   return { text: data?.choices?.[0]?.message?.content || '', modelName: cfg.modelId }
 }
 
-// HuggingFace Inference API — BLIP image captioning. Returns a caption that
-// we turn into a description + simple tags. CORS-friendly from the browser.
-async function tagWithHuggingFace(cfg, base64, mimeType, _prompt = TAG_PROMPT) {
-  if (!cfg.apiKey) {
-    const e = new Error('HuggingFace: no API key')
-    e.skip = true
-    throw e
-  }
-  const res = await fetch(buildEndpoint(cfg.endpoint, cfg.modelId), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${cfg.apiKey}`,
-    },
-    // BLIP expects the raw base64 image string as `inputs`, not a chat body.
-    body: JSON.stringify({ inputs: base64 }),
-  })
-
-  if (res.status === 429) {
-    const e = new Error('rate limited')
-    e.rateLimited = true
-    throw e
-  }
-  if (!res.ok) {
-    throw new Error(`HuggingFace ${res.status}: ${await res.text().catch(() => '')}`)
-  }
-  const data = await res.json()
-  if (data?.error) {
-    // Body-level error (e.g. model loading) → normal error, skip to next model.
-    throw new Error(String(data.error || 'huggingface error'))
-  }
-  // Response shape: [{ generated_text: "a caption..." }]
-  const caption = Array.isArray(data) ? data[0]?.generated_text || '' : data?.generated_text || ''
-  // Turn the caption into a JSON-shaped string so the shared parser can mine
-  // tags from it (keyword fallback), while keeping the caption as description.
-  const tags = caption
-    .toLowerCase()
-    .split(/[^a-z0-9]+/i)
-    .filter(Boolean)
-  const text = JSON.stringify({ tags, description: caption, ocr_text: null })
-  return { text, modelName: cfg.modelId }
-}
-
 function callProvider(model, base64, mimeType, prompt) {
   if (model.provider === 'gemini') return tagWithGemini(model, base64, mimeType, prompt)
   if (model.provider === 'groq') return tagWithGroq(model, base64, mimeType, prompt)
-  if (model.provider === 'huggingface') return tagWithHuggingFace(model, base64, mimeType, prompt)
   // 'openrouter' (and anything else OpenAI-compatible) → OpenRouter caller.
   return tagWithOpenRouter(model, base64, mimeType, prompt)
 }
@@ -701,20 +657,6 @@ export async function testModel(cfg) {
       const data = await res.json()
       if (data?.error) return { ok: false, message: data.error.message || 'error' }
       return { ok: true, message: 'Working' }
-    }
-
-    if (cfg.provider === 'huggingface') {
-      // BLIP is image-only; a HEAD-ish reachability check via the model page.
-      const res = await fetch(buildEndpoint(cfg.endpoint, cfg.modelId), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-        body: JSON.stringify({ inputs: PROMPT }),
-      })
-      if (res.status === 401 || res.status === 403) return { ok: false, message: `Auth failed (${res.status})` }
-      if (res.status === 429) return { ok: false, message: 'Rate limited (429)' }
-      // 200 OK or 503 (model loading) both mean the key + endpoint are valid.
-      if (res.ok || res.status === 503) return { ok: true, message: res.status === 503 ? 'Model loading (key OK)' : 'Working' }
-      return { ok: false, message: `HTTP ${res.status}` }
     }
 
     // OpenAI-compatible (openrouter / groq) — text-only chat. Groq ignores the

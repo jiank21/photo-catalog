@@ -68,7 +68,7 @@ const FEATURES = [
   {
     icon: <Bot size={18} />,
     title: 'AI Auto-Tag',
-    body: 'Model AI dengan fallback otomatis: Gemini → OpenRouter → Groq → HuggingFace → Gemma. Jika satu model kena limit, otomatis pindah ke model berikutnya.',
+    body: 'Model AI dengan fallback otomatis: Gemini → OpenRouter Vision → OpenRouter Auto → Groq → Gemma. Jika satu model kena limit, otomatis pindah ke model berikutnya.',
   },
   {
     icon: <Camera size={18} />,
@@ -119,7 +119,7 @@ const FAQS = [
   },
   {
     q: 'Berapa banyak foto yang bisa di-tag per hari?',
-    a: 'Tergantung model yang tersedia:\n- Gemini: ~500 foto/hari\n- OpenRouter Free: ~200 foto/hari\n- Groq: ~100 foto/hari\n- HuggingFace: ~300 foto/jam\n- Total estimasi: ~1.100+ foto/hari\nSemua GRATIS, tidak perlu kartu kredit.',
+    a: 'Tergantung model yang tersedia:\n- Gemini: ~500 foto/hari\n- OpenRouter Vision (Ling 3.0 VL): ~50 foto/hari\n- OpenRouter Auto Free: ~50 foto/hari\n- Gemma 4 31B: ~50 foto/hari\n- Groq: ~1.000 foto/hari (perlu VITE_GROQ_API_KEY)\n- Total estimasi: ~650 foto/hari, atau ~1.650 kalau Groq diaktifkan\nSemua GRATIS, tidak perlu kartu kredit.',
   },
   {
     q: 'File foto asli saya aman?',

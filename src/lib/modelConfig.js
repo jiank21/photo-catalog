@@ -22,7 +22,7 @@ export const DEFAULT_MODELS = [
     apiKey: '', // dari env VITE_GEMINI_API_KEY sebagai default
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{modelId}:generateContent',
     quota: 500,
-    description: 'Google Gemini - Best quality, 500 req/day free',
+    description: 'Google Gemini Flash — ~500 req/day free via AI Studio',
     order: 1,
   },
   {
@@ -35,9 +35,9 @@ export const DEFAULT_MODELS = [
     modelId: 'openrouter/free',
     apiKey: '', // dari env VITE_OPENROUTER_API_KEY
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    quota: 200,
-    description: 'OpenRouter Auto - routes to best available free vision model automatically',
-    order: 2,
+    quota: 50,
+    description: 'OpenRouter Auto Free — ~50 req/day, auto-select best free vision model',
+    order: 3,
   },
   {
     id: 'openrouter-vision',
@@ -47,9 +47,9 @@ export const DEFAULT_MODELS = [
     modelId: 'inclusionai/ling-3.0-flash-vl:free',
     apiKey: '', // pakai VITE_OPENROUTER_API_KEY
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    quota: 200,
-    description: 'OpenRouter - Ling 3.0 Flash VL (free) as explicit vision fallback',
-    order: 3,
+    quota: 50,
+    description: 'Ling 3.0 Flash VL — ~50 req/day free, 124B MoE native vision model',
+    order: 2,
   },
   {
     id: 'groq',
@@ -59,21 +59,12 @@ export const DEFAULT_MODELS = [
     modelId: 'meta-llama/llama-4-scout-17b-16e-instruct',
     apiKey: '', // dari env VITE_GROQ_API_KEY
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-    quota: 100,
-    description: 'Groq - Ultra fast inference, 100 req/day free',
+    // Groq free tier is 1,000 RPD for chat models. The 14,400 figure in Groq's
+    // docs is the illustrative x-ratelimit-limit-requests header value and only
+    // applies to the llama-prompt-guard classifiers.
+    quota: 1000,
+    description: 'Groq Llama 4 Scout — ~1,000 req/day free (isi VITE_GROQ_API_KEY)',
     order: 4,
-  },
-  {
-    id: 'hf',
-    enabled: true,
-    provider: 'huggingface',
-    name: 'HF BLIP',
-    modelId: 'Salesforce/blip-image-captioning-large',
-    apiKey: '', // dari env VITE_HF_API_KEY
-    endpoint: 'https://api-inference.huggingface.co/models/{modelId}',
-    quota: 300,
-    description: 'HuggingFace BLIP - Image captioning, 300 req/hour free',
-    order: 5,
   },
   {
     id: 'gemma',
@@ -83,9 +74,9 @@ export const DEFAULT_MODELS = [
     modelId: 'google/gemma-4-31b-it:free',
     apiKey: '', // pakai VITE_OPENROUTER_API_KEY
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-    quota: 200,
-    description: 'Gemma 4 31B - Google open model via OpenRouter',
-    order: 6,
+    quota: 50,
+    description: 'Gemma 4 31B via OpenRouter — ~50 req/day free, strong open model',
+    order: 5,
   },
 ]
 
@@ -95,7 +86,6 @@ const ENV_KEY_BY_ID = {
   openrouter: 'VITE_OPENROUTER_API_KEY',
   'openrouter-vision': 'VITE_OPENROUTER_API_KEY',
   groq: 'VITE_GROQ_API_KEY',
-  hf: 'VITE_HF_API_KEY',
   gemma: 'VITE_OPENROUTER_API_KEY',
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, KeyRound } from 'lucide-react'
 import { cn } from '../lib/cn'
-import { getModelConfig, MODEL_CONFIG_EVENT } from '../lib/modelConfig'
+import { getModelConfig, MODEL_CONFIG_EVENT, envVarName } from '../lib/modelConfig'
 import { getUsageToday } from '../lib/tagger'
 
 // ---------------- Provider brand icons (inline SVG) ----------------
@@ -31,15 +31,6 @@ const OpenRouterIcon = () => (
   </svg>
 )
 
-const HuggingFaceIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="10" fill="#FFD21E" />
-    <circle cx="9" cy="10" r="1.5" fill="#333" />
-    <circle cx="15" cy="10" r="1.5" fill="#333" />
-    <path d="M8 14s1 2 4 2 4-2 4-2" stroke="#333" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-)
-
 const GemmaIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
     <rect width="24" height="24" rx="6" fill="#1a73e8" />
@@ -55,7 +46,6 @@ const PROVIDER_ICONS = {
   gemini: GeminiIcon,
   openrouter: OpenRouterIcon,
   groq: GroqIcon,
-  huggingface: HuggingFaceIcon,
 }
 const ID_ICONS = {
   gemma: GemmaIcon,
@@ -107,7 +97,7 @@ export default function QuotaBar() {
     const hasKey = !!m.apiKey
     const remaining = exhausted ? 0 : Math.max(0, m.quota - used)
     const available = m.enabled && hasKey
-    return { ...m, used, exhausted, hasKey, remaining, available }
+    return { ...m, used, exhausted, hasKey, remaining, available, envVar: envVarName(m.id) }
   })
 
   // Total tags remaining across enabled + keyed models (ignores disabled).
@@ -136,8 +126,10 @@ export default function QuotaBar() {
                 !m.enabled
                   ? `${m.name}: disabled`
                   : !m.hasKey
-                    ? `${m.name}: tidak ada API key`
-                    : `${m.name}: ${m.used}/${m.quota} terpakai`
+                    ? m.envVar
+                      ? `${m.name}: Set ${m.envVar} to activate (~${m.quota}/day)`
+                      : `${m.name}: tidak ada API key`
+                    : `${m.name}: ${m.used}/${m.quota} terpakai hari ini`
               }
             >
               {isActive && (
@@ -161,13 +153,27 @@ export default function QuotaBar() {
                     {m.name}
                   </span>
                   <span className="block truncate font-mono text-[10px] opacity-60">{m.modelId}</span>
+                  <span className="block text-[10px] font-medium tabular-nums text-gray-400">
+                    ~{m.quota.toLocaleString('id-ID')}/day
+                  </span>
+                  {!m.hasKey && m.envVar && (
+                    <span
+                      className="block truncate font-mono text-[10px] text-amber-600 dark:text-amber-400"
+                      title={`Set ${m.envVar} to activate`}
+                    >
+                      Set {m.envVar}
+                    </span>
+                  )}
                 </div>
                 {!m.enabled ? (
                   <span className="shrink-0 rounded bg-gray-400/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
                     Disabled
                   </span>
                 ) : !m.hasKey ? (
-                  <span className="shrink-0 rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
+                  <span
+                    className="shrink-0 rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400"
+                    title={m.envVar ? `Set ${m.envVar} to activate` : 'Tidak ada API key'}
+                  >
                     No Key
                   </span>
                 ) : (
@@ -177,7 +183,7 @@ export default function QuotaBar() {
                       m.exhausted ? 'text-red-500' : 'text-gray-400',
                     )}
                   >
-                    {m.exhausted ? 'exhausted' : `${m.used} / ${m.quota}`}
+                    {m.exhausted ? 'exhausted' : `${m.used} / ${m.quota}/day`}
                   </span>
                 )}
               </div>
