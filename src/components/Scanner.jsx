@@ -66,7 +66,7 @@ function exifColumns(exifData, gpsLocation) {
 }
 
 // Highlight known model names inside a status line.
-const MODEL_WORDS = ['Gemini', 'OpenRouter', 'NVIDIA', 'Gemma']
+const MODEL_WORDS = ['Gemini', 'OpenRouter', 'Groq', 'Gemma', 'Ling']
 function renderStatus(text) {
   for (const w of MODEL_WORDS) {
     const idx = text.indexOf(w)
