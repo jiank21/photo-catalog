@@ -80,8 +80,25 @@ export const DEFAULT_MODELS = [
   },
 ]
 
-// Which env var supplies the default apiKey for a given model id.
-const ENV_KEY_BY_ID = {
+// Static, explicit env reads — one property access per variable.
+//
+// This MUST stay static. Reading `import.meta.env[someVariable]` defeats Vite's
+// compile-time substitution: it cannot know which key is wanted, so it inlines
+// the WHOLE env object into the bundle. That published every VITE_* value the
+// Vercel project defined — including VITE_HF_API_KEY and VITE_NVIDIA_API_KEY,
+// which this app never used — as plaintext in a file any visitor can read.
+// Listing each variable by name keeps the bundle down to the three we use.
+const ENV_KEYS = {
+  gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
+  openrouter: import.meta.env.VITE_OPENROUTER_API_KEY || '',
+  'openrouter-vision': import.meta.env.VITE_OPENROUTER_API_KEY || '',
+  groq: import.meta.env.VITE_GROQ_API_KEY || '',
+  gemma: import.meta.env.VITE_OPENROUTER_API_KEY || '',
+}
+
+// Variable NAMES only, for placeholder hints in Settings and the QuotaBar.
+// Names are safe to ship; values come from ENV_KEYS above.
+const ENV_VAR_NAMES = {
   gemini: 'VITE_GEMINI_API_KEY',
   openrouter: 'VITE_OPENROUTER_API_KEY',
   'openrouter-vision': 'VITE_OPENROUTER_API_KEY',
@@ -91,13 +108,12 @@ const ENV_KEY_BY_ID = {
 
 /** The env-provided key for a model id (empty string when unset). */
 export function envKeyFor(id) {
-  const name = ENV_KEY_BY_ID[id]
-  return (name && import.meta.env[name]) || ''
+  return ENV_KEYS[id] || ''
 }
 
 /** The env var NAME for a model id, for placeholder hints in the UI. */
 export function envVarName(id) {
-  return ENV_KEY_BY_ID[id] || null
+  return ENV_VAR_NAMES[id] || null
 }
 
 // Inject env keys as the default for any model whose apiKey is still empty.
