@@ -444,6 +444,26 @@ function buildEndpoint(endpoint, modelId) {
   return String(endpoint || '').replace('{modelId}', modelId || '')
 }
 
+// OpenRouter attributes requests to a referring app. Hardcoded to the deployed
+// origin so preview/localhost builds are attributed the same as production.
+const OPENROUTER_REFERER = 'https://photo-catalog.vercel.app'
+const OPENROUTER_TITLE = 'Photo Catalog'
+
+// Auto-router model ids: OpenRouter picks the underlying model itself, so we
+// add the routing hints (fallback + context transform) only for these.
+const OPENROUTER_AUTO_MODELS = new Set(['openrouter/auto', 'openrouter/free'])
+
+function openRouterHeaders(cfg) {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${cfg.apiKey}`,
+    'HTTP-Referer': OPENROUTER_REFERER,
+    'X-Title': OPENROUTER_TITLE,
+    // Hint which model we'd like the router to land on.
+    'X-Upstream-Model': cfg.modelId || '',
+  }
+}
+
 async function tagWithGemini(cfg, base64, mimeType, prompt = TAG_PROMPT) {
   if (!cfg.apiKey) {
     const e = new Error('Gemini: no API key')
@@ -516,28 +536,32 @@ async function tagWithOpenRouter(cfg, base64, mimeType, prompt = TAG_PROMPT) {
     e.skip = true
     throw e
   }
+  const body = {
+    model: cfg.modelId,
+    temperature: 0.2,
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+        ],
+      },
+    ],
+  }
+
+  // Auto-router only: let OpenRouter fall through to another model when the
+  // first pick is down, and compress the middle of an over-long context.
+  if (OPENROUTER_AUTO_MODELS.has(cfg.modelId)) {
+    body.route = 'fallback'
+    body.transforms = ['middle-out']
+  }
+
   const res = await fetch(cfg.endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${cfg.apiKey}`,
-      'HTTP-Referer': window.location.origin,
-      'X-Title': 'Photo Catalog',
-    },
-    body: JSON.stringify({
-      model: cfg.modelId,
-      temperature: 0.2,
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-          ],
-        },
-      ],
-    }),
+    headers: openRouterHeaders(cfg),
+    body: JSON.stringify(body),
   })
 
   if (res.status === 429) {
@@ -693,15 +717,11 @@ export async function testModel(cfg) {
       return { ok: false, message: `HTTP ${res.status}` }
     }
 
-    // OpenAI-compatible (openrouter / groq) — text-only chat.
+    // OpenAI-compatible (openrouter / groq) — text-only chat. Groq ignores the
+    // OpenRouter attribution headers, so one header builder covers both.
     const res = await fetch(cfg.endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.apiKey}`,
-        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : '',
-        'X-Title': 'Photo Catalog',
-      },
+      headers: openRouterHeaders(cfg),
       body: JSON.stringify({
         model: cfg.modelId,
         max_tokens: 32,

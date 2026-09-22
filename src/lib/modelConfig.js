@@ -29,13 +29,27 @@ export const DEFAULT_MODELS = [
     id: 'openrouter',
     enabled: true,
     provider: 'openrouter',
-    name: 'OpenRouter',
+    name: 'OpenRouter Auto',
+    // Auto-router across the free tier. Swap to 'openrouter/auto' for the paid
+    // router (wider model pool, billed per underlying model from credits).
     modelId: 'openrouter/free',
     apiKey: '', // dari env VITE_OPENROUTER_API_KEY
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     quota: 200,
-    description: 'OpenRouter Auto Free - Auto-selects best free vision model',
+    description: 'OpenRouter Auto - routes to best available free vision model automatically',
     order: 2,
+  },
+  {
+    id: 'openrouter-vision',
+    enabled: true,
+    provider: 'openrouter',
+    name: 'OpenRouter Vision',
+    modelId: 'inclusionai/ling-3.0-flash-vl:free',
+    apiKey: '', // pakai VITE_OPENROUTER_API_KEY
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    quota: 200,
+    description: 'OpenRouter - Ling 3.0 Flash VL (free) as explicit vision fallback',
+    order: 3,
   },
   {
     id: 'groq',
@@ -47,7 +61,7 @@ export const DEFAULT_MODELS = [
     endpoint: 'https://api.groq.com/openai/v1/chat/completions',
     quota: 100,
     description: 'Groq - Ultra fast inference, 100 req/day free',
-    order: 3,
+    order: 4,
   },
   {
     id: 'hf',
@@ -59,7 +73,7 @@ export const DEFAULT_MODELS = [
     endpoint: 'https://api-inference.huggingface.co/models/{modelId}',
     quota: 300,
     description: 'HuggingFace BLIP - Image captioning, 300 req/hour free',
-    order: 4,
+    order: 5,
   },
   {
     id: 'gemma',
@@ -71,7 +85,7 @@ export const DEFAULT_MODELS = [
     endpoint: 'https://openrouter.ai/api/v1/chat/completions',
     quota: 200,
     description: 'Gemma 4 31B - Google open model via OpenRouter',
-    order: 5,
+    order: 6,
   },
 ]
 
@@ -79,6 +93,7 @@ export const DEFAULT_MODELS = [
 const ENV_KEY_BY_ID = {
   gemini: 'VITE_GEMINI_API_KEY',
   openrouter: 'VITE_OPENROUTER_API_KEY',
+  'openrouter-vision': 'VITE_OPENROUTER_API_KEY',
   groq: 'VITE_GROQ_API_KEY',
   hf: 'VITE_HF_API_KEY',
   gemma: 'VITE_OPENROUTER_API_KEY',
