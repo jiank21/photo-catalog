@@ -66,7 +66,9 @@ function exifColumns(exifData, gpsLocation) {
 }
 
 // Highlight known model names inside a status line.
-const MODEL_WORDS = ['Gemini', 'OpenRouter', 'Groq', 'Gemma', 'Ling']
+// Longest/most specific first: renderStatus returns on the first match, so a
+// bare 'OpenRouter' listed ahead of the two-word names would shadow them.
+const MODEL_WORDS = ['OpenRouter Vision', 'OpenRouter Auto', 'OpenRouter', 'Gemini', 'Groq', 'Gemma']
 function renderStatus(text) {
   for (const w of MODEL_WORDS) {
     const idx = text.indexOf(w)
